@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dublin Transit Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+</head>
+<body>
+    <%- include("partials/header.ejs") %>
+
+    <div class="container py-4">
+        <div class="p-5 mb-4 bg-body-tertiary rounded-3">
+            <div class="container-fluid py-5">
+                <h1 class="display-5 fw-bold">Dublin Bus Tracker</h1>
+
+                <div class="btn-group btn-group-lg col-12" role="group" aria-label="Basic radio toggle button group">
+                    <input type="radio" class="btn-check index-tab-btn-rail" onclick="indexTabSwap(this)" name="btnradio" id="btnradio1" autocomplete="off" checked>
+                    <label class="btn btn-outline-primary py-3 px-5 fs-2" for="btnradio1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="bi bi-train-lightrail-front-fill" viewBox="0 0 16 16">
+                        <path d="M6.5 0a.5.5 0 0 0 0 1h1v1.011c-1.525.064-3.346.394-4.588.655C1.775 2.904 1 3.915 1 5.055V13.5A2.5 2.5 0 0 0 3.5 16h9a2.5 2.5 0 0 0 2.5-2.5V5.055c0-1.14-.775-2.15-1.912-2.39-1.242-.26-3.063-.59-4.588-.654V1h1a.5.5 0 0 0 0-1zM8 4c1.136 0 2.645.2 3.604.346.825.126 1.356.9 1.244 1.697q-.034.24-.07.522C12.643 7.596 12.5 8.949 12.5 10c0 .428.024.933.062 1.464.066.93.174 1.92.266 2.682.042.34.08.634.109.854h-1.01a63 63 0 0 1-.327-3H9.354c-.36 0-.704-.143-.958-.396a.35.35 0 0 0-.25-.104h-.292a.35.35 0 0 0-.25.104 1.35 1.35 0 0 1-.958.396H4.4a63 63 0 0 1-.328 3H3.064c.029-.22.067-.514.108-.854.092-.761.2-1.752.266-2.682.038-.531.062-1.036.062-1.464 0-1.051-.143-2.404-.278-3.435l-.07-.522c-.112-.798.42-1.571 1.244-1.697C5.356 4.199 6.864 4 8 4m-1.354 7H4.47c.019-.353.03-.692.03-1 0-.927-.104-2.051-.216-3h7.432c-.112.949-.216 2.073-.216 3 0 .308.011.647.03 1H9.354a.35.35 0 0 1-.25-.104 1.35 1.35 0 0 0-.958-.396h-.292c-.36 0-.704.143-.958.396a.35.35 0 0 1-.25.104m5.199-5h-7.69l-.013-.096a.497.497 0 0 1 .405-.57C5.505 5.188 6.947 5 8 5s2.495.188 3.453.334a.497.497 0 0 1 .405.57zM6 13.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0m0 0a.5.5 0 1 1 1 0 .5.5 0 0 1-1 0m4 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0m0 0a.5.5 0 1 1 1 0 .5.5 0 0 1-1 0"></path>
+                        </svg>
+                        Rail Lines
+                    </label>
+                    
+                    <input type="radio" class="btn-check index-tab-btn-bus" onclick="indexTabSwap(this)" name="btnradio" id="btnradio2" autocomplete="off">
+                    <label class="btn btn-outline-primary py-3 px-5 fs-2" for="btnradio2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="bi bi-bus-front" viewBox="0 0 16 16">
+                        <path d="M5 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0m8 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0m-6-1a1 1 0 1 0 0 2h2a1 1 0 1 0 0-2zm1-6c-1.876 0-3.426.109-4.552.226A.5.5 0 0 0 3 4.723v3.554a.5.5 0 0 0 .448.497C4.574 8.891 6.124 9 8 9s3.426-.109 4.552-.226A.5.5 0 0 0 13 8.277V4.723a.5.5 0 0 0-.448-.497A44 44 0 0 0 8 4m0-1c-1.837 0-3.353.107-4.448.22a.5.5 0 1 1-.104-.994A44 44 0 0 1 8 2c1.876 0 3.426.109 4.552.226a.5.5 0 1 1-.104.994A43 43 0 0 0 8 3"></path>
+                        <path d="M15 8a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1V2.64c0-1.188-.845-2.232-2.064-2.372A44 44 0 0 0 8 0C5.9 0 4.208.136 3.064.268 1.845.408 1 1.452 1 2.64V4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v3.5c0 .818.393 1.544 1 2v2a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5V14h6v1.5a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-2c.607-.456 1-1.182 1-2zM8 1c2.056 0 3.71.134 4.822.261.676.078 1.178.66 1.178 1.379v8.86a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5V2.64c0-.72.502-1.301 1.178-1.379A43 43 0 0 1 8 1"></path>
+                        </svg>
+                        Bus Routes
+                    </label>
+                </div>
+                
+                <div class="container">
+                    <br>
+                    <form>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text" id="inputGroup-sizing-lg">Route</span>
+                            <input type="text"  name="route" list="route" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-lg" onkeyup="routeFilter(this.form.elements.route.value)">
+                        </div>
+                    </form>
+                </div>
+
+                <div style="display: blok;" id="tab-content-rail">
+                    <br>
+                    <div class="list-group">
+                        <% routesData.forEach(route =>{
+                            if (route.route_type == 0 || route.route_type == 2){ %>
+                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold"><%= route.route_short_name %>: <%= route.route_long_name %></a>
+                        <% }}); %>
+                    </div>
+                </div>
+
+                <div style="display: none;" id="tab-content-bus">
+                    <br>
+                    <div class="list-group">
+                        <% routesData.forEach(route =>{
+                            if (route.route_type == 3){ %>
+                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold"><%= route.route_short_name %>: <%= route.route_long_name %></a>
+                        <% }}); %>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <br>
+    
+    
+    <%- include("partials/footer.ejs") %>
+</body>
+</html>

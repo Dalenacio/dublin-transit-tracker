@@ -1,3 +1,6 @@
+# API Documentation (somewhat heavy files auto-downloaded on server launch)
+public/apiDocumentation/
+
 # Logs
 logs
 *.log

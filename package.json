@@ -1,0 +1,22 @@
+{
+  "name": "capstone-bus-tracker",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "axios": "^1.8.4",
+    "dotenv": "^16.5.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "gtfs-realtime-bindings": "^1.1.1",
+    "protobufjs": "^7.4.0"
+  }
+}

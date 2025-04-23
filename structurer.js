@@ -5,6 +5,7 @@ import { updateInfo } from './updater.js';
 
     
 export async function structureData(){
+    const routesFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'routes.txt');
     const routesFileContent = fs.readFileSync(routesFilePath, 'utf-8');
     let structuredOutcome = routesFileContent.split('\n').filter(line => line.trim())
     structuredOutcome = structuredOutcome.map(structureReference);

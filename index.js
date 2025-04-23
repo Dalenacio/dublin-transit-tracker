@@ -57,7 +57,7 @@ app.get("/route/:routeId", async (req, res) => {
     try {
         const response =  getCache().data
 
-        const routeArray = response.filter((bus) => {
+        const busArray = response.filter((bus) => {
             return bus.trip_update?.trip?.route_id === chosenRoute;
         });
 
@@ -65,7 +65,7 @@ app.get("/route/:routeId", async (req, res) => {
         const displayName = `${routeInfo.route_short_name}: ${routeInfo.route_long_name}`;
 
 
-        res.render("routeInfo.ejs", {routeId : displayName, busArray : routeArray})
+        res.render("routeInfo.ejs", {routeId : displayName, busArray : busArray, routesData: routesData})
         
     } catch (error) {
         console.error("Error:", error);

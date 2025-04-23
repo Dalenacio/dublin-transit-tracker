@@ -12,7 +12,7 @@
     <div class="container py-4">
         <div class="p-5 mb-4 bg-body-tertiary rounded-3">
             <div class="container-fluid py-5">
-                <h1 class="display-5 fw-bold">Dublin Bus Tracker</h1>
+                <h1 class="display-5 fw-bold">Dublin Transit Tracker</h1>
 
                 <div class="btn-group btn-group-lg col-12" role="group" aria-label="Basic radio toggle button group">
                     <input type="radio" class="btn-check index-tab-btn-rail" onclick="indexTabSwap(this)" name="btnradio" id="btnradio1" autocomplete="off" checked>
@@ -38,7 +38,7 @@
                     <form>
                         <div class="input-group input-group-lg">
                             <span class="input-group-text" id="inputGroup-sizing-lg">Route</span>
-                            <input type="text"  name="route" list="route" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-lg" onkeyup="routeFilter(this.form.elements.route.value)">
+                            <input type="text"  name="route" autocomplete="off" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-lg" onkeyup="routeFilter(this.form.elements.route.value, 'index-list-item')">
                         </div>
                     </form>
                 </div>
@@ -48,7 +48,7 @@
                     <div class="list-group">
                         <% routesData.forEach(route =>{
                             if (route.route_type == 0 || route.route_type == 2){ %>
-                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold"><%= route.route_short_name %>: <%= route.route_long_name %></a>
+                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.route_short_name %>: <%= route.route_long_name %></a>
                         <% }}); %>
                     </div>
                 </div>
@@ -58,7 +58,7 @@
                     <div class="list-group">
                         <% routesData.forEach(route =>{
                             if (route.route_type == 3){ %>
-                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold"><%= route.route_short_name %>: <%= route.route_long_name %></a>
+                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.route_short_name %>: <%= route.route_long_name %></a>
                         <% }}); %>
                     </div>
                 </div>

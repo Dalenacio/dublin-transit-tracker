@@ -1,5 +1,5 @@
 import { updateCache, getCache } from './cache.js';
-import { updateInfo } from './updater.js';
+import { updateInfo, getIsUpdating } from './updater.js';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
@@ -16,20 +16,21 @@ const pollApi = async () => {
 
 
   try {
-    if (getCache().apiCallsToday >= 5000) {
-      return;
-    }
+    if (getCache().apiCallsToday >= 5000) {return;}
 
     const response = await axios.get(API_URL, {
       headers: { "x-api-key": API_KEY }
     });
     
+    updateCache(response.data.entity);
+
+    if(getIsUpdating()){return;}
     let isValid = false
     do {
       isValid = await checkReference(response.data.entity) 
     } while (!isValid);
 
-    updateCache(response.data.entity);
+
   } catch (error) {
     console.error("Polling failed: ", error.message);
     console.log("Trying again in 30 seconds.")
@@ -40,12 +41,7 @@ const pollApi = async () => {
 async function checkReference(data) {
 
   const routesFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'routes.txt');
-  if (!fs.existsSync(routesFilePath)) {
-    const GTFS_DIR = path.join(process.cwd(), 'public', 'apiDocumentation');
-    fs.mkdirSync(GTFS_DIR, { recursive: true })
-    console.log('Created apiDocumentation directory!');
-    await updateInfo();
-  }
+  if (!fs.existsSync(routesFilePath)) {await updateInfo();}
   
   let routesFileContent = fs.readFileSync(routesFilePath, 'utf-8');
 

@@ -11,17 +11,30 @@ const INFO_URL = "https://www.transportforireland.ie/transitData/Data/GTFS_Realt
 
 const IS_LOW_MEM = process.env.IS_LOW_MEM;
 
+let isUpdating = false;
 
 
 export async function updateInfo() {
-  //Create API documentation directory if it doesn't already exist, especially important for first server launch.
-  if (!fs.existsSync(GTFS_DIR)) {
-    fs.mkdirSync(GTFS_DIR, { recursive: true });
-  }
-  
-  if (IS_LOW_MEM == "true"){return await processZipDisk()}
-  else {return await processZipMemory()}
+  if (isUpdating) return false;
+  isUpdating = true;
 
+  try {
+    //Create API documentation directory if it doesn't already exist, especially important for first server launch.
+    if (!fs.existsSync(GTFS_DIR)) {
+      fs.mkdirSync(GTFS_DIR, { recursive: true });
+    }
+    
+    if (IS_LOW_MEM == "true"){return await processZipDisk()}
+    else {return await processZipMemory()}
+  } catch (error) {
+    console.error("updateInfo error:", error);
+  } finally {
+    isUpdating = false;
+  }
+}
+
+export function getIsUpdating() {
+  return isUpdating;
 }
 
 //A less memory-intensive way to get the reference material that does not load it into the memory, for less memory intensive environments.

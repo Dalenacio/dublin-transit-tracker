@@ -9,10 +9,12 @@ const API_URL = "https://api.nationaltransport.ie/gtfsr/v2/TripUpdates?format=js
 const API_KEY = process.env.API_KEY;
 const POLL_INTERVAL = 60000;
 
-const routesFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'routes.txt');
+
 
 
 const pollApi = async () => {
+
+
   try {
     if (getCache().apiCallsToday >= 5000) {
       return;
@@ -24,7 +26,7 @@ const pollApi = async () => {
     
     let isValid = false
     do {
-      isValid = await checkInfoValid(response.data.entity) 
+      isValid = await checkReference(response.data.entity) 
     } while (!isValid);
 
     updateCache(response.data.entity);
@@ -35,7 +37,16 @@ const pollApi = async () => {
   }
 };
 
-async function checkInfoValid(data) {
+async function checkReference(data) {
+
+  const routesFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'routes.txt');
+  if (!fs.existsSync(routesFilePath)) {
+    const GTFS_DIR = path.join(process.cwd(), 'public', 'apiDocumentation');
+    fs.mkdirSync(GTFS_DIR, { recursive: true })
+    console.log('Created apiDocumentation directory!');
+    await updateInfo();
+  }
+  
   let routesFileContent = fs.readFileSync(routesFilePath, 'utf-8');
 
   for (const bus of data) {

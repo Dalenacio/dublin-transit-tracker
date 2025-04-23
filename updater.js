@@ -9,10 +9,9 @@ const infoUrl = "https://www.transportforireland.ie/transitData/Data/GTFS_Realti
 
 export async function updateInfo() {
   try {
-    // On first run especially, create API documentation folder if it doesn't already exist
+    //Create API documentation folder if it doesn't already exist, especially important for first run.
     if (!fs.existsSync(GTFS_DIR)) {
       fs.mkdirSync(GTFS_DIR, { recursive: true });
-      console.log('Created apiDocumentation directory');
     }
 
     const response = await fetch(infoUrl);

@@ -28,6 +28,8 @@ Dublin GTFS-R Reference data changes very frequently and needs to be regularly r
 
 The downloaded can take a few minutes depending on connection speed and will need to be performed upon first server launch, as well as subsequent launches if the server has been dormant for too long. 
 
+On very low-memory systems, such as some free online hosts, the default approach might be too memory-intensive. Add ``IS_LOW_MEM=true`` to the .env file (once created) to work from the disk as much as possible instead.
+
 ### Installation
 
 Clone the project:

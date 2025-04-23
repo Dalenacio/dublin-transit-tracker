@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import fs, { createWriteStream } from "fs";
 import { pipeline } from 'stream/promises';
 import path from "path";
+import 'dotenv/config';
 
 const GTFS_DIR = path.join(process.cwd(), 'public', 'apiDocumentation');
 
@@ -18,16 +19,14 @@ export async function updateInfo() {
     fs.mkdirSync(GTFS_DIR, { recursive: true });
   }
   
-  if (IS_LOW_MEM){return await processZipDisk()}
+  if (IS_LOW_MEM == "true"){return await processZipDisk()}
   else {return await processZipMemory()}
 
 }
 
 //A less memory-intensive way to get the reference material that does not load it into the memory, for less memory intensive environments.
  async function processZipDisk() {
-
   try {
-    
     const response = await fetch(INFO_URL);
     if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
 

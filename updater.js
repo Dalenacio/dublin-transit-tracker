@@ -25,14 +25,23 @@ export async function updateInfo() {
 }
 
 //A less memory-intensive way to get the reference material that does not load it into the memory, for less memory intensive environments.
- async function processZipDisk() {
+async function processZipDisk() {
+  let zipPath;
   try {
     const response = await fetch(INFO_URL);
     if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
 
-    const zipPath = path.join(GTFS_DIR, 'temp.zip');
+
+    zipPath = path.join(GTFS_DIR, `temp_${Date.now()}.zip`);
+    
+
     const fileStream = createWriteStream(zipPath);
     await pipeline(response.body, fileStream);
+    
+
+    if (!fs.existsSync(zipPath) || fs.statSync(zipPath).size === 0) {
+      throw new Error("Temp ZIP file not created properly");
+    }
 
     const zip = new AdmZip(zipPath);
     for (const entry of zip.getEntries()) {
@@ -45,11 +54,13 @@ export async function updateInfo() {
     await fs.promises.unlink(zipPath);
     return true;
   } catch (error) {
-    console.error("Update failed:", error);
+    console.error("Disk processing error:", error);
+    if (zipPath && fs.existsSync(zipPath)) {
+      await fs.promises.unlink(zipPath);
+    }
     return false;
   }
-
- }
+}
  
  //The default behavior on normal memory systems.
  async function processZipMemory() {

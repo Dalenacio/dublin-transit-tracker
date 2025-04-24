@@ -4,6 +4,7 @@ import fs, { createWriteStream } from "fs";
 import { pipeline } from 'stream/promises';
 import path from "path";
 import 'dotenv/config';
+import os from 'os';
 
 const GTFS_DIR = path.join(process.cwd(), 'public', 'apiDocumentation');
 
@@ -17,6 +18,7 @@ let isUpdating = false;
 export async function updateInfo() {
   if (isUpdating) return false;
   isUpdating = true;
+  console.log("updating API reference material")
 
   try {
     //Create API documentation directory if it doesn't already exist, especially important for first server launch.
@@ -44,27 +46,31 @@ async function processZipDisk() {
     const response = await fetch(INFO_URL);
     if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
 
-
-    zipPath = path.join(GTFS_DIR, `temp_${Date.now()}.zip`);
+    const tempDir = os.tmpdir();
+    zipPath = path.join(tempDir, `gtfs_temp_${Date.now()}.zip`);
     
-
     const fileStream = createWriteStream(zipPath);
     await pipeline(response.body, fileStream);
-    
-
-    if (!fs.existsSync(zipPath) || fs.statSync(zipPath).size === 0) {
-      throw new Error("Temp ZIP file not created properly");
-    }
 
     const zip = new AdmZip(zipPath);
-    for (const entry of zip.getEntries()) {
-      if (!entry.isDirectory) {
-        const safePath = path.join(GTFS_DIR, path.basename(entry.name));
-        await fs.promises.writeFile(safePath, entry.getData());
+    const entries = zip.getEntries();
+    
+    // Files to exclude from extraction (we can change this as needed.)
+    const EXCLUDED_FILES = new Set(['shapes.txt', 'stop_times.txt']);
+
+    //We process the entries one at a time to minimize memory usage.
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry.isDirectory || EXCLUDED_FILES.has(entry.name)) {
+        continue;
       }
+
+      const entryPath = path.join(GTFS_DIR, path.basename(entry.name));
+      await fs.promises.writeFile(entryPath, entry.getData());
     }
 
     await fs.promises.unlink(zipPath);
+    console.log('GTFS files extracted (excluding shapes.txt and stop_times.txt)');
     return true;
   } catch (error) {
     console.error("Disk processing error:", error);
@@ -74,7 +80,7 @@ async function processZipDisk() {
     return false;
   }
 }
- 
+
  //The default behavior on normal memory systems.
  async function processZipMemory() {
   try {

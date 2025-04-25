@@ -1,36 +1,47 @@
-import AdmZip from "adm-zip";
+import yauzl from "yauzl";
 import { Buffer } from 'node:buffer';
-import fs, { createWriteStream } from "fs";
+import fs from "fs";
+import fsp from 'fs/promises';
 import { pipeline } from 'stream/promises';
 import path from "path";
 import 'dotenv/config';
 import os from 'os';
 
 const GTFS_DIR = path.join(process.cwd(), 'public', 'apiDocumentation');
-
 const INFO_URL = "https://www.transportforireland.ie/transitData/Data/GTFS_Realtime.zip";
-
-const IS_LOW_MEM = process.env.IS_LOW_MEM;
+const IS_LOW_MEM = process.env.IS_LOW_MEM === "true";
 
 let isUpdating = false;
 
-
 export async function updateInfo() {
-  if (isUpdating) return false;
+  if (isUpdating) {
+      console.log("Update already in progress.");
+      return false;
+  }
   isUpdating = true;
-  console.log("updating API reference material")
+  console.log("Starting update of API reference material...");
 
   try {
-    //Create API documentation directory if it doesn't already exist, especially important for first server launch.
-    if (!fs.existsSync(GTFS_DIR)) {
-      fs.mkdirSync(GTFS_DIR, { recursive: true });
+    await fsp.mkdir(GTFS_DIR, { recursive: true });
+    console.log(`Ensured directory exists: ${GTFS_DIR}`);
+
+    let success = false;
+    if (IS_LOW_MEM) {
+        console.log("Using low-memory disk processing method.");
+        success = await processZipDisk();
+    } else {
+        console.log("Using standard memory processing method.");
+        // success = await processZipMemory(); //Not yet implemented
+        throw new Error("Standard memory processing not implemented yet.");
     }
-    
-    if (IS_LOW_MEM == "true"){return await processZipDisk()}
-    else {return await processZipMemory()}
+    console.log("Update process completed.", success ? "Success!" : "Failed or partial success.");
+    return success;
+
   } catch (error) {
-    console.error("updateInfo error:", error);
+    console.error("Error during updateInfo:", error);
+    return false;
   } finally {
+    console.log("Resetting update flag.");
     isUpdating = false;
   }
 }
@@ -41,45 +52,115 @@ export function getIsUpdating() {
 
 //A less memory-intensive way to get the reference material that does not load it into the memory, for less memory intensive environments.
 async function processZipDisk() {
+  const EXCLUDED_FILES = new Set(['shapes.txt']);
   let zipPath;
+  let success = true;
+
   try {
+    console.log(`Downloading GTFS data from ${INFO_URL}...`);
     const response = await fetch(INFO_URL);
-    if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
-
-    const tempDir = os.tmpdir();
-    zipPath = path.join(tempDir, `gtfs_temp_${Date.now()}.zip`);
-    
-    const fileStream = createWriteStream(zipPath);
+    if (!response.ok || !response.body) {
+        throw new Error(`Download failed: HTTP ${response.status}`);
+    }
+    const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'gtfs-'));
+    zipPath = path.join(tempDir, `gtfs_download.zip`);
+    const fileStream = fs.createWriteStream(zipPath);
     await pipeline(response.body, fileStream);
+    console.log(`Download complete. Saved temporary zip to: ${zipPath}`);
 
-    const zip = new AdmZip(zipPath);
-    const entries = zip.getEntries();
-    
-    // Files to exclude from extraction (we can change this as needed.)
-    const EXCLUDED_FILES = new Set(['shapes.txt', 'stop_times.txt']);
 
-    //We process the entries one at a time to minimize memory usage.
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
-      if (entry.isDirectory || EXCLUDED_FILES.has(entry.name)) {
-        continue;
-      }
+    console.log(`Starting reference material extraction to ${GTFS_DIR}.`);
+    await new Promise((resolve, reject) => {
+      yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
+        if (err) {
+          return reject(new Error(`Error opening zip file: ${err.message}`));
+        }
 
-      const entryPath = path.join(GTFS_DIR, path.basename(entry.name));
-      await fs.promises.writeFile(entryPath, entry.getData());
-    }
+        console.log("Zip file opened successfully.");
 
-    await fs.promises.unlink(zipPath);
-    console.log('GTFS files extracted (excluding shapes.txt and stop_times.txt)');
-    return true;
+        zipfile.on('error', (zipErr) => {
+            success = false;
+            console.error("Zipfile error:", zipErr)
+            reject(zipErr);
+        });
+
+        zipfile.on('end', () => {
+            console.log('Finished reading all entries in the zip file.');
+            resolve();
+        });
+
+        zipfile.on('entry', async (entry) => {
+          try {
+            const fullOutputPath = path.join(GTFS_DIR, entry.fileName);
+
+            if (entry.fileName.endsWith('/')) {
+              zipfile.readEntry();
+              return;
+            }
+
+            if (EXCLUDED_FILES.has(entry.fileName)) {
+              console.log(`Excluding file: ${entry.fileName}`);
+              zipfile.readEntry();
+              return;
+            }
+            const outputDir = path.dirname(fullOutputPath);
+            await fsp.mkdir(outputDir, { recursive: true });
+
+            console.log(`Extracting: ${entry.fileName} to ${fullOutputPath}`);
+            zipfile.openReadStream(entry, async (streamErr, readStream) => {
+              if (streamErr) {
+                console.error(`Error opening read stream for ${entry.fileName}:`, streamErr);
+                success = false;
+                zipfile.readEntry();
+                return;
+              }
+
+              try {
+                const writeStream = fs.createWriteStream(fullOutputPath);
+                await pipeline(readStream, writeStream);
+                console.log(`Successfully extracted ${entry.fileName}`);
+              } catch (pipeErr) {
+                console.error(`Error piping data for ${entry.fileName}:`, pipeErr);
+                success = false;
+                try { await fsp.unlink(fullOutputPath); } catch { /* ignore unlink error */ }
+              } finally {
+                 zipfile.readEntry();
+              }
+            });
+          } catch (entryProcessingError) {
+              // Catch errors during directory creation or other sync parts of entry handling
+              console.error(`Error processing entry ${entry.fileName}:`, entryProcessingError);
+              success = false;
+              zipfile.readEntry();
+          }
+        });
+
+        zipfile.readEntry();
+      });
+    });
+
+    console.log("Extraction process finished.");
+
   } catch (error) {
-    console.error("Disk processing error:", error);
-    if (zipPath && fs.existsSync(zipPath)) {
-      await fs.promises.unlink(zipPath);
+    console.error("Error during disk processing:", error);
+    success = false;
+  } finally {
+    if (zipPath) {
+      const tempDir = path.dirname(zipPath);
+      console.log(`Cleaning up temporary directory: ${tempDir}`);
+      try {
+        await fsp.rm(tempDir, { recursive: true, force: true });
+        console.log("Temporary directory deleted.");
+      } catch (rmErr) {
+        console.error(`Error deleting temporary directory ${tempDir}: ${rmErr}`);
+      }
     }
-    return false;
   }
+  return success;
 }
+
+
+
 
  //The default behavior on normal memory systems.
  async function processZipMemory() {

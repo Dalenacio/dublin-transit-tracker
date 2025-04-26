@@ -46,20 +46,22 @@
                 <div style="display: blok;" id="tab-content-rail">
                     <br>
                     <div class="list-group">
-                        <% routesData.forEach(route =>{
-                            if (route.route_type == 0 || route.route_type == 2){ %>
-                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.route_short_name %>: <%= route.route_long_name %></a>
-                        <% }}); %>
+                        <% for (const route_id in data.routes){
+                            route = data.routes[route_id]
+                            if (route.type == 0 || route.type == 2){ %>
+                                <a href="/route/<%= route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.short_name %>: <%= route.long_name %></a>
+                        <% }}; %>
                     </div>
                 </div>
 
                 <div style="display: none;" id="tab-content-bus">
                     <br>
                     <div class="list-group">
-                        <% routesData.forEach(route =>{
-                            if (route.route_type == 3){ %>
-                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.route_short_name %>: <%= route.route_long_name %></a>
-                        <% }}); %>
+                        <% for (const route_id in data.routes){
+                            route = data.routes[route_id]
+                            if (route.type == 3){ %>
+                                <a href="/route/<%= route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.short_name %>: <%= route.long_name %></a>
+                        <% }}; %>
                     </div>
                 </div>
 

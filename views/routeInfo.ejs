@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= routeId %></title>
+    <title><%= data.routes[routeId].short_name %>: <%= data.routes[routeId].long_name %> </title>
     <link rel="stylesheet" type="text/css" href="/styles/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
 </head>
@@ -11,8 +11,8 @@
     <%- include("partials/header.ejs") %>
     <div class="container">
         <br>
-        <h1>Dublin Bus Tracker</h1>
-        <h2><%= routeId %></h2>
+        <h1>Dublin Transit Tracker</h1>
+        <h2><%= data.routes[routeId].short_name %>: <%= data.routes[routeId].long_name %></h2>
         <table>
             <thead>
                 <tr>
@@ -23,20 +23,19 @@
                 </tr>
             </thead>
             <tbody>
-                <% busArray.forEach(element => { %>
+                <% for (const vehicleId of data.routes[routeId].vehicle_ids){
+                    const vehicle = data.vehicles[vehicleId] %>
                     <tr>
-                        <th scope="row"><%= element.id %> </th>
+                        <th scope="row"><%= vehicle.vehicle_id %> </th>
                         <td>N/A</td>
-                        <td><%= element.trip_update?.trip?.schedule_relationship %>.</td>
-                        <% if (element.trip_update?.stop_time_update?.[1]?.arrival?.delay) { %>
-                            <td><%= Math.floor(element.trip_update?.stop_time_update?.[1]?.arrival?.delay / 60) %>m <%= Math.abs(element.trip_update?.stop_time_update?.[1]?.arrival?.delay % 60) %>s</td>
-                        <% } else {%>
+                        <td><%= vehicle.status %></td>
+                        <% if (vehicle.next_stop_delays) { %>
+                            <td><%= Math.floor(vehicle.next_stop_delays / 60) %>m <%= Math.abs(vehicle.next_stop_delays % 60) %>s </td>
+                        <%} else {%>
                             <td></td>
                         <% } %>
-                         
-
                     </tr>
-                <% }) %>
+                <% } %>
             </tbody>
         </table>
     </div>

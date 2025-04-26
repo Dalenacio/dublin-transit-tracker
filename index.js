@@ -32,31 +32,16 @@ async function startServer() {
 }
 
 app.get("/", async (req, res) =>{
-    const routesData = await structureData()
-    res.render("index.ejs", {routesData: routesData})
+    // const data = getCache()
+    // res.json(data)
+    const data = await structureData()
+    res.render("index.ejs", {data: data})
 })
 
 app.get("/route/:routeId", async (req, res) => {
-    const routesData = await structureData()
+    const data = await structureData()
     const chosenRoute = req.params.routeId;
-
-    try {
-        const cache =  getCache().data
-
-        const busArray = cache.filter((bus) => {
-            return bus.trip_update?.trip?.route_id === chosenRoute;
-        });
-
-        const routeInfo = routesData.find(route => route.route_id === chosenRoute);
-        const displayName = `${routeInfo.route_short_name}: ${routeInfo.route_long_name}`;
-
-
-        res.render("routeInfo.ejs", {routeId : displayName, busArray : busArray, routesData: routesData})
-        
-    } catch (error) {
-        console.error("Error:", error);
-        res.status(500).send("Error fetching data");
-    }
+    res.render("routeInfo.ejs", {routeId : chosenRoute, data: data})
 });
 
 

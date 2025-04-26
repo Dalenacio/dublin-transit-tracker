@@ -15,10 +15,10 @@
         <form class="col-12 col-lg-auto mb-3 mb-lg-0 me-lg-3" role="search" onsubmit="findRouteId(this.form.elements.route.value)">
           <input type="search" name="route" class="form-control" autocomplete="off" placeholder="Search..." data-bs-toggle="dropdown" aria-label="Search" id="nav-search-bar" onkeyup="routeFilter(this.value, 'nav-search-dropdown-item')">
           <ul class="dropdown-menu" id="nav-search-dropdown">
-            <% routesData.forEach(route =>{
-              if (route.route_type > -1){ %>
+            <% for (const route_id in data.routes){
+              route = data.routes[route_id]%>
                   <li><a href="/route/<%= route.route_id %>" class="dropdown-item nav-search-dropdown-item" style="display: none;"><%= route.route_short_name %>: <%= route.route_long_name %></a></li>
-             <% }}); %>
+             <% }; %>
           </ul>
         
           <button type="submit" class="btn btn-primary">

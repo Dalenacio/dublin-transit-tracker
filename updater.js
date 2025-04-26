@@ -128,7 +128,6 @@ async function processZipDisk() {
               }
             });
           } catch (entryProcessingError) {
-              // Catch errors during directory creation or other sync parts of entry handling
               console.error(`Error processing entry ${entry.fileName}:`, entryProcessingError);
               success = false;
               zipfile.readEntry();

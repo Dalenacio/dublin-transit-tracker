@@ -11,33 +11,49 @@
     <%- include("partials/header.ejs") %>
     <div class="container">
         <br>
-        <h1>Dublin Transit Tracker</h1>
-        <h2><%= data.routes[routeId].short_name %>: <%= data.routes[routeId].long_name %></h2>
-        <table>
-            <thead>
-                <tr>
-                    <th scope="col">Bus ID</th>
-                    <th scope="col">Direction</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Delay</th>
-                </tr>
-            </thead>
-            <tbody>
-                <% for (const vehicleId of data.routes[routeId].vehicle_ids){
-                    const vehicle = data.vehicles[vehicleId] %>
-                    <tr>
-                        <th scope="row"><%= vehicle.vehicle_id %> </th>
-                        <td>N/A</td>
-                        <td><%= vehicle.status %></td>
-                        <% if (vehicle.next_stop_delays) { %>
-                            <td><%= Math.floor(vehicle.next_stop_delays / 60) %>m <%= Math.abs(vehicle.next_stop_delays % 60) %>s </td>
+        <h1><%= data.routes[routeId].short_name %>: <%= data.routes[routeId].long_name %></h1>
+    </div>
+    <div class="container pt-3">
+        <div class="accordion" id="accordionExample">
+            <% for (const vehicleId of data.routes[routeId].vehicle_ids){
+                const vehicle = data.vehicles[vehicleId] %>
+                <div class="accordion-item <% if (vehicle.status == "CANCELED") { %>
+                    btn-secondary
+                    <% } %>" >
+                    <h2 class="accordion-header" >
+                    <button class="accordion-button collapsed <% if (vehicle.status == 'CANCELED') { %>
+                        bg-secondary text-white
+                    <% } else if (vehicle.next_stops[0]?.delay > 60 && vehicle.next_stops[0]?.delay < 301) {%> 
+                        bg-warning
+                    <% } else if (vehicle.next_stops[0]?.delay > 300) {%> 
+                        bg-danger text-white
+                    <% } %> " type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<%= vehicle.vehicle_id %>" aria-expanded="false" aria-controls="collapseTwo">
+                        <strong><%= vehicle.vehicle_id %>:</strong> <%= vehicle.status %>
+                    </button>
+                    </h2>
+                    <div id="collapse-<%= vehicle.vehicle_id %>" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-4">
+                                <strong>Status:</strong> <%= vehicle.status %>
+                            </div>
+                            <div class="col-4">
+                                <strong>Next Stop:</strong> WIP
+                            </div>
+                            <div class="col-4">
+                                <strong>Delay: </strong><% if (vehicle.next_stops[0]?.delay) { %>
+                            <%= Math.floor(vehicle.next_stops[0]?.delay / 60) %>m <%= Math.abs(vehicle.next_stops[0]?.delay % 60) %>s
                         <%} else {%>
-                            <td></td>
+                            None
                         <% } %>
-                    </tr>
-                <% } %>
-            </tbody>
-        </table>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <% } %>
+        </div>
     </div>
     <%- include("partials/footer.ejs") %>
 </body>

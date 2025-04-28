@@ -31,7 +31,17 @@ class Vehicle {
         this.route_id = route_id;
         this.direction_id = direction_id;
         this.next_stops = [];
-        this.next_stop_delays = new Map();
+    }
+}
+
+class Stop {
+    constructor(stop_json){
+        const stopsFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'stops.txt');
+        const stopTimeFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'stop_times.txt');
+        this.stop_id = stop_json.stop_id;
+        this.name = "Placeholder";
+        this.status = stop_json.schedule_relationship;
+        this.delay = stop_json.arrival?.delay
     }
 }
     
@@ -69,11 +79,12 @@ function loadVehicleData(){
             trip.direction_id
         )
 
-        //PLACEHOLDER!!!
-        //A crude and unsophisticated method to give the delay for the vehicle's next stop.
-        const nextStop = vehicleData.trip_update?.stop_time_update?.[1];
-        vehicle.next_stop_delays = nextStop?.arrival?.delay
-        vehicle.next_stops = nextStop?.stop_id
+        const nextStops = vehicleData.trip_update?.stop_time_update;
+        for (const stopKey in nextStops){
+            const stop_json = nextStops[stopKey]
+            vehicle.next_stops.push(new Stop(stop_json))
+        }
+        
 
         // for (const stop of stopUpdates){
             //Later we will determine lateness per stop as well as all upcoming stops. But for now we're focusing on the next stop only.

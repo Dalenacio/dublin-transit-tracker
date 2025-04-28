@@ -32,8 +32,6 @@ async function startServer() {
 }
 
 app.get("/", async (req, res) =>{
-    // const data = getCache()
-    // res.json(data)
     const data = await structureData()
     res.render("index.ejs", {data: data})
 })
@@ -42,6 +40,11 @@ app.get("/route/:routeId", async (req, res) => {
     const data = await structureData()
     const chosenRoute = req.params.routeId;
     res.render("routeInfo.ejs", {routeId : chosenRoute, data: data})
+});
+
+app.get("/cache", async (req, res) => {
+  const data = getCache()
+  res.json(data)
 });
 
 

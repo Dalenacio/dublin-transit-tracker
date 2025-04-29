@@ -68,7 +68,7 @@ async function loadVehicleData(){
     let cache = getCache();
     let returnDir = {};
     
-    // const stopCSV = await loadCSV("stops.txt");
+    const stopCSV = await loadCSV("stops.txt");
 
     for (const vehicleData of cache.data){
         const trip = vehicleData.trip_update.trip;

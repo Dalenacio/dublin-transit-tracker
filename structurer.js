@@ -67,8 +67,8 @@ export async function structureData() {
 async function loadVehicleData(){
     let cache = getCache();
     let returnDir = {};
+    const stopNames = await loadStopData()
     
-    const stopCSV = await loadCSV("stops.txt");
 
     for (const vehicleData of cache.data){
         const trip = vehicleData.trip_update.trip;
@@ -85,10 +85,8 @@ async function loadVehicleData(){
         const nextStops = vehicleData.trip_update?.stop_time_update;
         for (const stopKey in nextStops){
             const stop_json = nextStops[stopKey]
-            // const stop_info = stopCSV.find((entry) => {
-            //     return entry.stop_id == stop_json.stop_id})
-            // const stop_name = stop_info.stop_name
-            const stop_name = stop_json.stop_id
+            const stop_name = stopNames[stop_json.stop_id]
+            // const stop_name = stop_json.stop_id
             vehicle.next_stops.push(new Stop(stop_json, stop_name))
         }
 
@@ -103,6 +101,19 @@ async function loadVehicleData(){
 
 
     return returnDir
+}
+
+async function loadStopData() {
+    const stopCSV = await loadCSV("stops.txt");
+    const stopNameDict = {}
+
+    if (stopCSV) {
+        for (const entry of stopCSV) {
+            stopNameDict[entry.stop_id] = entry.stop_name;
+        }
+    }
+
+    return stopNameDict;
 }
 
 async function loadRouteData() {

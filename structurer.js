@@ -36,8 +36,6 @@ class Vehicle {
 
 class Stop {
     constructor(stop_json, name){
-        const stopsFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'stops.txt');
-        const stopTimeFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'stop_times.txt');
         this.stop_id = stop_json.stop_id;
         this.name = name;
         this.status = stop_json.schedule_relationship;
@@ -70,7 +68,7 @@ async function loadVehicleData(){
     let cache = getCache();
     let returnDir = {};
     
-    const stopCSV = await loadCSV("stops.txt");
+    // const stopCSV = await loadCSV("stops.txt");
 
     for (const vehicleData of cache.data){
         const trip = vehicleData.trip_update.trip;
@@ -87,9 +85,10 @@ async function loadVehicleData(){
         const nextStops = vehicleData.trip_update?.stop_time_update;
         for (const stopKey in nextStops){
             const stop_json = nextStops[stopKey]
-            const stop_info = stopCSV.find((entry) => {
-                return entry.stop_id == stop_json.stop_id})
-            const stop_name = stop_info.stop_name
+            // const stop_info = stopCSV.find((entry) => {
+            //     return entry.stop_id == stop_json.stop_id})
+            // const stop_name = stop_info.stop_name
+            const stop_name = stop_json.stop_id
             vehicle.next_stops.push(new Stop(stop_json, stop_name))
         }
 

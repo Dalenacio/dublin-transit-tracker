@@ -33,22 +33,21 @@
                     </h2>
                     <div id="collapse-<%= vehicle.vehicle_id %>" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
                     <div class="accordion-body">
-                        <div class="row">
-                            <div class="col-4">
-                                <strong>Status:</strong> <%= vehicle.status %>
+                        <% for (const stop of vehicle.next_stops) {%>
+                            <div class="row">
+                                <div class="col-6">
+                                    <strong>Stop:</strong> <%= stop.name %>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Delay: </strong> <% if (stop.delay) { %>
+                                <%= Math.floor(stop.delay / 60) %>m <%= Math.abs(stop.delay % 60) %>s
+                            <%} else {%>
+                                None
+                            <% } %>
+                                </div>
+                                
                             </div>
-                            <div class="col-4">
-                                <strong>Next Stop:</strong> WIP
-                            </div>
-                            <div class="col-4">
-                                <strong>Delay: </strong><% if (vehicle.next_stops[0]?.delay) { %>
-                            <%= Math.floor(vehicle.next_stops[0]?.delay / 60) %>m <%= Math.abs(vehicle.next_stops[0]?.delay % 60) %>s
-                        <%} else {%>
-                            None
                         <% } %>
-                            </div>
-                            
-                        </div>
                     </div>
                 </div>
             </div>

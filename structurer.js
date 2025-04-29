@@ -1,7 +1,7 @@
-import fs, { linkSync } from 'fs';
+import fs from 'fs';
 import path from 'path';
-import { updateInfo } from './updater.js';
 import { getCache } from './cache.js';
+import {parse} from "csv-parse";
 
 class Route {
     constructor(route_id, agency, short_name, long_name, type) {
@@ -35,11 +35,11 @@ class Vehicle {
 }
 
 class Stop {
-    constructor(stop_json){
+    constructor(stop_json, name){
         const stopsFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'stops.txt');
         const stopTimeFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'stop_times.txt');
         this.stop_id = stop_json.stop_id;
-        this.name = "Placeholder";
+        this.name = name;
         this.status = stop_json.schedule_relationship;
         this.delay = stop_json.arrival?.delay
     }
@@ -47,9 +47,11 @@ class Stop {
     
 export async function structureData() {
     try {
-      const [routeDict, vehicleDict] = await Promise.all([
+      const [routeDict, vehicleDict, stopDict, stopTimeDict] = await Promise.all([
         loadRouteData(),
-        loadVehicleData()
+        loadVehicleData(),
+        null,
+        null
       ]);
       
       linkVehicles(routeDict, vehicleDict);
@@ -64,9 +66,12 @@ export async function structureData() {
     }
   }
 
-function loadVehicleData(){
+async function loadVehicleData(){
     let cache = getCache();
     let returnDir = {};
+    
+    const stopCSV = await loadCSV("stops.txt");
+
     for (const vehicleData of cache.data){
         const trip = vehicleData.trip_update.trip;
         const startTime = parseTripDate(trip.start_date, trip.start_time);
@@ -82,8 +87,12 @@ function loadVehicleData(){
         const nextStops = vehicleData.trip_update?.stop_time_update;
         for (const stopKey in nextStops){
             const stop_json = nextStops[stopKey]
-            vehicle.next_stops.push(new Stop(stop_json))
+            const stop_info = stopCSV.find((entry) => {
+                return entry.stop_id == stop_json.stop_id})
+            const stop_name = stop_info.stop_name
+            vehicle.next_stops.push(new Stop(stop_json, stop_name))
         }
+
         
 
         // for (const stop of stopUpdates){
@@ -97,42 +106,64 @@ function loadVehicleData(){
     return returnDir
 }
 
-function loadRouteData(){
-    const routesFilePath = path.join(process.cwd(), 'public', 'apiDocumentation', 'routes.txt');
-    const routesFileContent = fs.readFileSync(routesFilePath, 'utf-8');
-    const routeList = routesFileContent.split('\n').filter(line => line.trim())
-    routeList.shift() //the first line of all the .txt reference files is an explanation of the format. We need to discard this.
-    //Actually I've since learned what a CSV format is... I'll find a library to implement this more cleanly later.
-
-    let returnDir = {};
-
-    for (const route of routeList) {
-        const normalizedRoute = normalizeRouteData(route);
-        returnDir[normalizedRoute.route_id] = normalizedRoute;
-    };
-
-    return returnDir
-};
-
-function normalizeRouteData(line){
-    const parts = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (const char of line) {
-        if (char === '"') {
-        inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-        parts.push(current.trim());
-        current = '';
-        } else {
-        current += char;
+async function loadRouteData() {
+    const routeCSV = await loadCSV("routes.txt");
+    const routeDict = {};
+    if (routeCSV) {
+        for (const entry of routeCSV) {
+            const route = new Route(entry.route_id, entry.agency, entry.route_short_name, entry.route_long_name, entry.route_type);
+            routeDict[route.route_id] = route;
         }
     }
-    parts.push(current.trim());
+    return routeDict;
+}
 
-    return new Route(parts[0] || '', parts[1] || '', parts[2] || '', parts[3]?.replace(/^"|"$/g, '') || '', parts[5] || '');
-};
+async function loadCSV(fileName) {
+    const filePath = path.join(process.cwd(), 'public', 'apiDocumentation', fileName);
+    const fileContentPromise = new Promise((resolve, reject) => {
+        fs.readFile(filePath, {encoding: "utf-8"}, (err, data) => {
+            if (err) {
+                console.error(`Error reading file ${fileName}: ${err}`)
+                reject(err);
+                return
+            }
+            resolve(data);
+        });
+    })
+
+    
+    try {
+        const data = await fileContentPromise;
+        return new Promise((resolve, reject) => {
+            const records = [];
+
+            const parser = parse(data, {
+                bom: true,
+                columns: true,
+                skip_empty_lines: true
+            });
+
+            parser.on('readable', function () {
+                let record;
+                while ((record = parser.read()) !== null) {
+                    records.push(record);
+                }
+            });
+
+            parser.on('error', function (err) {
+                reject(err);
+            });
+
+            parser.on('end', function () {
+                resolve(records);
+            });
+        });
+
+    } catch (parseError) {
+        console.error(`Error parsing file ${fileName}: ${parseError}`);
+        return null;
+    }
+}
 
 function linkVehicles(routes, vehicles){
     const cache = getCache()

@@ -23,9 +23,10 @@ class Route {
 }
 
 class Vehicle {
-    constructor(vehicle_id, trip_id, start_time, status, route_id, direction_id) {
+    constructor(vehicle_id, trip_id, trip_data, start_time, status, route_id, direction_id) {
         this.vehicle_id = vehicle_id;
         this.trip_id = trip_id;
+        this.trip_data = trip_data;
         this.start_time = start_time;
         this.status = status;
         this.route_id = route_id;
@@ -40,6 +41,16 @@ class Stop {
         this.name = name;
         this.status = stop_json.schedule_relationship;
         this.delay = stop_json.arrival?.delay
+    }
+}
+
+class Trip {
+    constructor(route_id, service_id, trip_id, trip_headsign, direction_id){
+        this.route_id = route_id;
+        this.service_id = service_id;
+        this.trip_id = trip_id;
+        this.trip_headsign = trip_headsign;
+        this.direction_id = direction_id;
     }
 }
     
@@ -67,15 +78,18 @@ export async function structureData() {
 async function loadVehicleData(){
     let cache = getCache();
     let returnDir = {};
-    const stopNames = await loadStopData()
+    const stopNames = await loadStopData();
+    const trips = await loadTripData();
     
 
     for (const vehicleData of cache.data){
         const trip = vehicleData.trip_update.trip;
         const startTime = parseTripDate(trip.start_date, trip.start_time);
+
         let vehicle = new Vehicle(
             vehicleData.id,
             trip.trip_id,
+            trips[trip.trip_id],
             startTime,
             trip.schedule_relationship,
             trip.route_id,
@@ -101,6 +115,19 @@ async function loadVehicleData(){
 
 
     return returnDir
+}
+
+async function loadTripData() {
+    const tripCSV = await loadCSV("trips.txt");
+    const tripDict = {};
+
+    if (tripCSV){
+        for (const entry of tripCSV){
+            tripDict[entry.trip_id] = new Trip(entry.route_id, entry.service_id, entry.trip_id, entry.trip_headsign, entry.direction_id)
+        }
+    }
+
+    return tripDict
 }
 
 async function loadStopData() {

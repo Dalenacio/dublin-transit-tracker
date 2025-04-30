@@ -9,49 +9,101 @@
 </head>
 <body>
     <%- include("partials/header.ejs") %>
+    <% let tripZeroName = "Trip0"
+    let tripOneName = "Trip1" %>
     <div class="container">
         <br>
         <h1><%= data.routes[routeId].short_name %>: <%= data.routes[routeId].long_name %></h1>
     </div>
-    <div class="container pt-3">
-        <div class="accordion" id="accordionExample">
-            <% for (const vehicleId of data.routes[routeId].vehicle_ids){
-                const vehicle = data.vehicles[vehicleId] %>
-                <div class="accordion-item <% if (vehicle.status == "CANCELED") { %>
-                    btn-secondary
-                    <% } %>" >
-                    <h2 class="accordion-header" >
-                    <button class="accordion-button collapsed <% if (vehicle.status == 'CANCELED') { %>
-                        bg-secondary text-white
-                    <% } else if (vehicle.next_stops[0]?.delay > 60 && vehicle.next_stops[0]?.delay < 301) {%> 
-                        bg-warning
-                    <% } else if (vehicle.next_stops[0]?.delay > 300) {%> 
-                        bg-danger text-white
-                    <% } %> " type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<%= vehicle.vehicle_id %>" aria-expanded="false" aria-controls="collapseTwo">
-                        <strong><%= vehicle.vehicle_id %>:</strong> <%= vehicle.status %>
-                    </button>
+    <div class="container">
+        <div class="container row pt-3">
+            <div class="container col-6">
+                <h2 id="dir-0-title"> Direction: <%=data.vehicles[Object.keys(data.vehicles).find((key) => data.vehicles[key].direction_id == 1)].trip_data.trip_headsign %>
                     </h2>
-                    <div id="collapse-<%= vehicle.vehicle_id %>" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
-                    <div class="accordion-body">
-                        <% for (const stop of vehicle.next_stops) {%>
-                            <div class="row">
-                                <div class="col-6">
-                                    <strong>Stop:</strong> <%= stop.name %>
-                                </div>
-                                <div class="col-6">
-                                    <strong>Delay: </strong> <% if (stop.delay) { %>
-                                <%= Math.floor(stop.delay / 60) %>m <%= Math.abs(stop.delay % 60) %>s
-                            <%} else {%>
-                                None
-                            <% } %>
-                                </div>
-                                
+                <div class="accordion" id="accordionDirZero">
+                    <% for (const vehicleId of data.routes[routeId].vehicle_ids){
+                        const vehicle = data.vehicles[vehicleId]
+                        if (vehicle.direction_id == 1){continue} %>
+                        <div class="accordion-item <% if (vehicle.status == "CANCELED") { %>
+                            btn-secondary
+                            <% } %>" >
+                            <h2 class="accordion-header" >
+                            <button class="accordion-button collapsed <% if (vehicle.status == 'CANCELED') { %>
+                                bg-secondary text-white
+                            <% } else if (vehicle.next_stops[0]?.delay > 60 && vehicle.next_stops[0]?.delay < 301) {%> 
+                                bg-warning
+                            <% } else if (vehicle.next_stops[0]?.delay > 300) {%> 
+                                bg-danger text-white
+                            <% } %> " type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<%= vehicle.vehicle_id %>" aria-expanded="false" aria-controls="collapseTwo">
+                            <strong><%= vehicle.vehicle_id %>:</strong> <%= vehicle.status %>... Departs in: <%= Math.floor((vehicle.start_time.getTime() - Date.now()) / 60000) %> minutes.
+                            </button>
+                            </h2>
+                            <div id="collapse-<%= vehicle.vehicle_id %>" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
+                            <div class="accordion-body">
+                                <% for (const stop of vehicle.next_stops) {%>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <strong>Stop:</strong> <%= stop.name %>
+                                        </div>
+                                        <div class="col-6">
+                                            <strong>Delay: </strong> <% if (stop.delay) { %>
+                                        <%= Math.floor(stop.delay / 60) %>m <%= Math.abs(stop.delay % 60) %>s
+                                    <%} else {%>
+                                        None
+                                    <% } %>
+                                        </div>
+                                        
+                                    </div>
+                                <% } %>
                             </div>
-                        <% } %>
+                        </div>
                     </div>
+                    <% } %>
                 </div>
             </div>
-            <% } %>
+            <div class="container col-6">
+                <h2 id="dir-1-title"> Direction: <%=data.vehicles[Object.keys(data.vehicles).find((key) => data.vehicles[key].direction_id == 0)].trip_data.trip_headsign %></h2>
+                <div class="accordion" id="accordionDirOne">
+                    <% for (const vehicleId of data.routes[routeId].vehicle_ids){
+                        const vehicle = data.vehicles[vehicleId]
+                        if (vehicle.direction_id == 0){continue} %>
+                        <div class="accordion-item <% if (vehicle.status == "CANCELED") { %>
+                            btn-secondary
+                            <% } %>" >
+                            <h2 class="accordion-header" >
+                            <button class="accordion-button collapsed <% if (vehicle.status == 'CANCELED') { %>
+                                bg-secondary text-white
+                            <% } else if (vehicle.next_stops[0]?.delay > 60 && vehicle.next_stops[0]?.delay < 301) {%> 
+                                bg-warning
+                            <% } else if (vehicle.next_stops[0]?.delay > 300) {%> 
+                                bg-danger text-white
+                            <% } %> " type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<%= vehicle.vehicle_id %>" aria-expanded="false" aria-controls="collapseTwo">
+                                <strong><%= vehicle.vehicle_id %>:</strong> <%= vehicle.status %>... Departs in: <%= Math.floor((vehicle.start_time.getTime() - Date.now()) / 60000) %> minutes.
+                            </button>
+                            </h2>
+                            <div id="collapse-<%= vehicle.vehicle_id %>" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
+                            <div class="accordion-body">
+                                <% for (const stop of vehicle.next_stops) {%>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <strong>Stop:</strong> <%= stop.name %>
+                                        </div>
+                                        <div class="col-6">
+                                            <strong>Delay: </strong> <% if (stop.delay) { %>
+                                        <%= Math.floor(stop.delay / 60) %>m <%= Math.abs(stop.delay % 60) %>s
+                                    <%} else {%>
+                                        None
+                                    <% } %>
+                                        </div>
+                                        
+                                    </div>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                    <% } %>
+                </div>
+            </div>
         </div>
     </div>
     <%- include("partials/footer.ejs") %>

@@ -76,30 +76,31 @@ export async function initDatabase(){
     await execute(db, "CREATE TABLE IF NOT EXISTS " + "vehicles ("+ sqlVehicles + ")")
     await execute(db, "CREATE TABLE IF NOT EXISTS " + "stops ("+ sqlStops + ")")
     await execute(db, "CREATE TABLE IF NOT EXISTS " + "trips ("+ sqlTrips + ")")
-    await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
+    //await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
 
     await execute(db, `DELETE FROM routes;`)
     await execute(db, `DELETE FROM trips;`)
     await execute(db, `DELETE FROM vehicles;`)
     await execute(db, `DELETE FROM stops;`)
-    await execute(db, `DELETE FROM stop_times;`)
+    //await execute(db, `DELETE FROM stop_times;`)
     await loadRouteData().then(() => {console.log("Loaded Route Data!")});
     await loadTripData().then(() => {console.log("Loaded Trip Data!")});
     await loadVehicleData().then(() => {console.log("Loaded Vehicle Data!")});
     await loadStopData().then(() => {console.log("Loaded Stop Data!")});
-    await loadStopTimeData().then(() => {console.log("Loaded Stop Time Data!")});
-    await getGeneralData().then((outcome) => {console.log(outcome)});
+    //await loadStopTimeData().then(() => {console.log("Loaded Stop Time Data!")});
+    //await getGeneralData().then((outcome) => {console.log(outcome)});
 }
 
 export async function getGeneralData(){
-    const routesData = await getAll(`SELECT * FROM vehicles`);
+    const routesData = await getAll(`SELECT * FROM routes`);
     return routesData;
 };
 
 export async function getRouteData(route_id){
-    const routeData = await getAll(`SELECT * FROM routes WHERE route_id = ${route_id};`);
-    const vehicleList = await getAll(`SELECT * FROM vehicles WHERE route_id = ${route_id};`);
+    const routeData = await getAll(`SELECT * FROM routes WHERE route_id = '${route_id}';`);
+    const vehicleList = await getAll(`SELECT * FROM vehicles WHERE route_id = '${route_id}';`);
     const returnData = {routeData: routeData, vehicleList: vehicleList};
+    return returnData;
 };
 
 async function getAll(sql, params = []){

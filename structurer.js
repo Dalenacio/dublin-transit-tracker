@@ -73,7 +73,7 @@ export async function structureData() {
       console.error('Structure error:', error);
       throw new Error('Failed to structure data');
     }
-  }
+}
 
 async function loadVehicleData(){
     let cache = getCache();

@@ -3,6 +3,7 @@ import { structureData } from "./structurer.js";
 import { getCache } from './cache.js';
 import './poller.js';
 import { updateInfo } from "./updater.js";
+import { initDatabase } from "./database.js";
 
 const port = 3000;
 const app = express();
@@ -20,6 +21,8 @@ app.get('/health', (req, res) => {
 async function startServer() {
   try {
     await updateInfo();
+    await initDatabase();
+
     isReady = true;
     
     app.listen(port, () => {

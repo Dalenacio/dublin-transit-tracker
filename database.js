@@ -377,7 +377,6 @@ async function loadVehicleData(){
             const route_id = trip.route_id;
             const direction_id = trip.direction_id;
 
-            if(!trip_id){console.log("vehicleData: ", vehicleData)}
             await stmtRun(stmt, [vehicle_id, trip_id, startTime, status, route_id, direction_id])
 
             const nextStops = vehicleData.trip_update?.stop_time_update;
@@ -386,7 +385,7 @@ async function loadVehicleData(){
                 const stop = nextStops[stopKey]
                 const stop_sequence = stop.stop_sequence
                 const stop_id = stop.stop_id
-                const stop_name = await stmtGet(stopNameStmt, [stop_id])
+                const stop_name = await stmtGet(stopNameStmt, [stop_id]).then((value) => {return value.stop_name})
                 const schedule_relationship = stop.schedule_relationship
                 const arrival_delay = stop.arrival?.delay
                 let arrival_time = stop.arrival?.time
@@ -397,9 +396,6 @@ async function loadVehicleData(){
                     stop_time_data = await stmtGet(stopTimeRequest, [trip_id, stop_sequence])
                     arrival_time = unixTimeWithDelay(stop_time_data.arrival_time, arrival_delay)
                     departure_time = unixTimeWithDelay(stop_time_data.departure_time, departure_delay)
-                    console.log("Expected arrival time: ", stop_time_data.arrival_time)
-                    console.log("Arrival delay: ", arrival_delay, " seconds.")
-                    console.log("Calculated arrival time: ", new Date(arrival_time))
                 }
 
                 if(!departure_time && departure_delay && trip_id){}

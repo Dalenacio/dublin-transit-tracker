@@ -1,15 +1,15 @@
 /*
 TO DO:
 * Re-implement automated updates.
-* Work on the data request methods.
-* Implement per-vehicle trip update data. How?
+    * DONE: Work on the data request methods. 
+    * DONE: Implement per-vehicle trip update data. How?
 * Simplify: we can have one single function to do the insertion process for everything instead of a discrete function for each.
 * Only update files if strictly necessary: compare file hashes, then update line by line?
 * maintain atomicity with the streaming method: send data to temporary table, then make that the main table in one single transaction.
 */
 
 
-import sqlite3 from "sqlite3"
+import sqlite3 from "sqlite3";
 import { readFile } from 'node:fs/promises';
 import path from 'path';
 import {parse} from "csv-parse";
@@ -27,20 +27,6 @@ export async function initDatabase(){
         short_name TEXT NOT NULL, 
         long_name TEXT NOT NULL, 
         type INT NOT NULL
-    `
-
-    //We have to explicitly allow trip_id to be null because SOMETIMES there'll be a random vehicle without a set trip_id.
-    //This appears to only happen for buses added outside of schedule? And very rarely and inconsistently?
-    //Either way, better safe than sorry, and a good thing to be aware of.
-    const sqlVehicles = `
-        vehicle_id TEXT PRIMARY KEY, 
-        trip_id TEXT NULL,
-        start_time TEXT NOT NULL, 
-        status TEXT NOT NULL, 
-        route_id TEXT NOT NULL, 
-        direction_id INTEGER NOT NULL, 
-        FOREIGN KEY (trip_id) REFERENCES trips(trip_id), 
-        FOREIGN KEY (route_id) REFERENCES routes(route_id)
     `
 
     const sqlStops = `
@@ -72,22 +58,58 @@ export async function initDatabase(){
         FOREIGN KEY (stop_id) REFERENCES stops(stop_id)
     `
 
+    //We have to explicitly allow trip_id to be null because SOMETIMES there'll be a random vehicle without a set trip_id.
+    //This appears to only happen for buses added outside of schedule? And very rarely and inconsistently?
+    //Either way, better safe than sorry, and a good thing to be aware of.
+    const sqlVehicles = `
+        vehicle_id TEXT PRIMARY KEY, 
+        trip_id TEXT NULL,
+        start_time TEXT NOT NULL, 
+        status TEXT NOT NULL, 
+        route_id TEXT NOT NULL, 
+        direction_id INTEGER NOT NULL, 
+        FOREIGN KEY (trip_id) REFERENCES trips(trip_id), 
+        FOREIGN KEY (route_id) REFERENCES routes(route_id)
+    `
+
+    const sqlVehicleTimes = `
+        vehicle_id TEXT NOT NULL,
+        stop_sequence INTEGER NOT NULL,
+        stop_id TEXT NOT NULL,
+        stop_name TEXT,
+        route_id TEXT NOT NULL,
+        trip_id TEXT NULL,
+        schedule_relationship TEXT,
+        arrival_delay INTEGER,
+        arrival_time INTEGER,
+        departure_delay INTEGER,
+        departure_time INTEGER,
+        PRIMARY KEY(vehicle_id, stop_sequence),
+        FOREIGN KEY(vehicle_id) references vehicles(vehicle_id),
+        FOREIGN KEY(stop_id) references stops(stop_id),
+        FOREIGN KEY(route_id) references routes(route_id),
+        FOREIGN KEY(trip_id) references trips(trip_id)
+    `
+
     await execute(db, "CREATE TABLE IF NOT EXISTS " + "routes ("+ sqlRoutes + ")")
-    await execute(db, "CREATE TABLE IF NOT EXISTS " + "vehicles ("+ sqlVehicles + ")")
     await execute(db, "CREATE TABLE IF NOT EXISTS " + "stops ("+ sqlStops + ")")
     await execute(db, "CREATE TABLE IF NOT EXISTS " + "trips ("+ sqlTrips + ")")
-    //await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
+    await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
+    await execute(db, "CREATE TABLE IF NOT EXISTS " + "vehicles ("+ sqlVehicles + ")")
+    await execute(db, "CREATE TABLE IF NOT EXISTS " +  "vehicle_times ("+ sqlVehicleTimes +")")
 
     await execute(db, `DELETE FROM routes;`)
-    await execute(db, `DELETE FROM trips;`)
-    await execute(db, `DELETE FROM vehicles;`)
     await execute(db, `DELETE FROM stops;`)
-    //await execute(db, `DELETE FROM stop_times;`)
+    await execute(db, `DELETE FROM trips;`)
+    await execute(db, `DELETE FROM stop_times;`)
+    await execute(db, `DELETE FROM vehicles;`)
+    await execute(db, `DELETE FROM vehicle_times;`)
+
     await loadRouteData().then(() => {console.log("Loaded Route Data!")});
-    await loadTripData().then(() => {console.log("Loaded Trip Data!")});
-    await loadVehicleData().then(() => {console.log("Loaded Vehicle Data!")});
     await loadStopData().then(() => {console.log("Loaded Stop Data!")});
-    //await loadStopTimeData().then(() => {console.log("Loaded Stop Time Data!")});
+    await loadTripData().then(() => {console.log("Loaded Trip Data!")});
+    await loadStopTimeData().then(() => {console.log("Loaded Stop Time Data!")});
+    await loadVehicleData().then(() => {console.log("Loaded Vehicle Data!")});
     //await getGeneralData().then((outcome) => {console.log(outcome)});
 }
 
@@ -126,6 +148,18 @@ async function stmtRun(stmt, params = []) {
         })
     };
 };
+
+export async function stmtGet(stmt, params = []){
+    if (params.length > 0){
+        return new Promise((resolve, reject) => {
+            stmt.get(params, (err, row) => {if (err) {reject(err)} else {resolve(row)}})
+        })
+    } else {
+        return new Promise((resolve, reject) => {
+            stmt.get((err, row) => {if (err) {reject(err)} else {resolve(row)}})
+        })
+    }
+}
 
 export async function execute(db, sql, params = []){
     if (params.length > 0){
@@ -177,6 +211,33 @@ async function loadRouteData() {
     }
 };
 
+async function loadStopData() {
+    console.log("Loading stops...")
+    let stmt
+    let transactionBegun = false;
+    try{
+        const stopsCSV = await loadCSV("stops.txt");
+        if (!stopsCSV) {throw new Error("Failed to load CSV.")};
+
+        stmt = db.prepare(`INSERT INTO stops VALUES(?, ?)`)
+        await execute(db, `BEGIN TRANSACTION`)
+
+        for (const entry of stopsCSV) {
+            const stop_id = entry.stop_id
+            const stop_name = entry.stop_name
+
+            await stmtRun(stmt, [stop_id, stop_name])
+        }
+
+        await execute(db, `COMMIT`)
+    } catch(error){
+        await execute(db, `ROLLBACK`)
+        console.log(error)
+    } finally {
+        if (stmt) {stmt.finalize()}
+    }
+};
+
 async function loadTripData() {
     console.log("Loading trips...")
     let stmt
@@ -204,81 +265,6 @@ async function loadTripData() {
         console.log("Total time: ", (new Date() - start_time) / 1000, " seconds!")
     }catch(error){
         if(transactionBegun){await execute(db, "ROLLBACK")}
-        console.log(error)
-    } finally {
-        if (stmt) {stmt.finalize()}
-    }
-};
-
-async function loadVehicleData(){
-    console.log("Loading vehicles...")
-    let stmt
-    let transactionBegun = false;
-    try{
-        const apiData = await pollApi()
-        if (!apiData) {throw new Error("Failed to load API data.")}
-
-        stmt = db.prepare(`INSERT INTO vehicles VALUES (?, ?, ?, ?, ?, ?)`)
-        await execute(db, "BEGIN TRANSACTION")
-        transactionBegun = true;
-        // const stopNames = await loadStopData();
-        // const trips = await loadTripData();
-
-        for (const vehicleKey in apiData){
-            const vehicleData = apiData[vehicleKey]
-            const trip = vehicleData.trip_update.trip;
-            
-            const vehicle_id = vehicleData.id;
-            const trip_id = trip.trip_id;
-            const startTime = parseTripDate(trip.start_date, trip.start_time);
-            const status = trip.schedule_relationship;
-            const route_id = trip.route_id;
-            const direction_id = trip.direction_id;
-
-            if(!trip_id){console.log("vehicleData: ", vehicleData)}
-            await stmtRun(stmt, [vehicle_id, trip_id, startTime, status, route_id, direction_id])
-
-            // const nextStops = vehicleData.trip_update?.stop_time_update;
-            // for (const stopKey in nextStops){
-            //     const stop_json = nextStops[stopKey]
-            //     const stop_name = stopNames[stop_json.stop_id]
-            //     // const stop_name = stop_json.stop_id
-            //     vehicle.next_stops.push(new Stop(stop_json, stop_name))
-            // }
-
-
-            // for (const stop of stopUpdates){
-                //Later we will determine lateness per stop as well as all upcoming stops. But for now we're focusing on the next stop only.
-            // };
-
-        }
-        await execute(db, "COMMIT")
-    }catch(error){
-        if(transactionBegun){await execute(db, "ROLLBACK")}
-        console.log("Error while loading vehicle data: ", error)}
-};
-
-async function loadStopData() {
-    console.log("Loading stops...")
-    let stmt
-    let transactionBegun = false;
-    try{
-        const stopsCSV = await loadCSV("stops.txt");
-        if (!stopsCSV) {throw new Error("Failed to load CSV.")};
-
-        stmt = db.prepare(`INSERT INTO stops VALUES(?, ?)`)
-        await execute(db, `BEGIN TRANSACTION`)
-
-        for (const entry of stopsCSV) {
-            const stop_id = entry.stop_id
-            const stop_name = entry.stop_name
-
-            await stmtRun(stmt, [stop_id, stop_name])
-        }
-
-        await execute(db, `COMMIT`)
-    } catch(error){
-        await execute(db, `ROLLBACK`)
         console.log(error)
     } finally {
         if (stmt) {stmt.finalize()}
@@ -361,6 +347,73 @@ async function loadStopTimeData() {
     }
 }
 
+async function loadVehicleData(){
+    console.log("Loading vehicles...")
+    let stmt
+    let stopNameStmt
+    let vehicleTimeStmt
+    let stopTimeRequest
+    let transactionBegun = false;
+    try{
+        const apiData = await pollApi()
+        if (!apiData) {throw new Error("Failed to load API data.")}
+
+        stmt = db.prepare(`INSERT INTO vehicles VALUES (?, ?, ?, ?, ?, ?)`)
+        stopNameStmt = db.prepare(`SELECT stop_name FROM stops WHERE stop_id = ?`)
+        stopTimeRequest = db.prepare(`SELECT * from stop_times WHERE trip_id = ? AND stop_sequence = ?`)
+        vehicleTimeStmt = db.prepare(`INSERT INTO vehicle_times VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+
+        await execute(db, "BEGIN TRANSACTION")
+        transactionBegun = true;
+
+        for (const vehicleKey in apiData){
+            const vehicleData = apiData[vehicleKey]
+            const trip = vehicleData.trip_update.trip;
+            
+            const vehicle_id = vehicleData.id;
+            const trip_id = trip.trip_id;
+            const startTime = parseTripDate(trip.start_date, trip.start_time);
+            const status = trip.schedule_relationship;
+            const route_id = trip.route_id;
+            const direction_id = trip.direction_id;
+
+            if(!trip_id){console.log("vehicleData: ", vehicleData)}
+            await stmtRun(stmt, [vehicle_id, trip_id, startTime, status, route_id, direction_id])
+
+            const nextStops = vehicleData.trip_update?.stop_time_update;
+            for (const stopKey in nextStops){
+                let stop_time_data
+                const stop = nextStops[stopKey]
+                const stop_sequence = stop.stop_sequence
+                const stop_id = stop.stop_id
+                const stop_name = await stmtGet(stopNameStmt, [stop_id])
+                const schedule_relationship = stop.schedule_relationship
+                const arrival_delay = stop.arrival?.delay
+                let arrival_time = stop.arrival?.time
+                const departure_delay = stop.departure?.delay
+                let departure_time = stop.departure?.time
+
+                if(!arrival_time && arrival_delay && !departure_time && departure_delay && trip_id){
+                    stop_time_data = await stmtGet(stopTimeRequest, [trip_id, stop_sequence])
+                    arrival_time = unixTimeWithDelay(stop_time_data.arrival_time, arrival_delay)
+                    departure_time = unixTimeWithDelay(stop_time_data.departure_time, departure_delay)
+                    console.log("Expected arrival time: ", stop_time_data.arrival_time)
+                    console.log("Arrival delay: ", arrival_delay, " seconds.")
+                    console.log("Calculated arrival time: ", new Date(arrival_time))
+                }
+
+                if(!departure_time && departure_delay && trip_id){}
+
+                await stmtRun(vehicleTimeStmt, [vehicle_id, stop_sequence, stop_id, stop_name, route_id, trip_id, schedule_relationship, arrival_delay, arrival_time, departure_delay, departure_time])
+            }
+
+        }
+        await execute(db, "COMMIT")
+    }catch(error){
+        if(transactionBegun){await execute(db, "ROLLBACK")}
+        console.log("Error while loading vehicle data: ", error)}
+};
+
 
 async function loadCSV(fileName) {
     try {
@@ -403,6 +456,13 @@ async function* streamCSV(fileName) {
     }
     console.log(`Finished streaming records from ${filePath}`);
 }
+
+function unixTimeWithDelay(hourString, delay){
+    const timeArray = hourString.split(":")
+    const now = new Date()
+    const normalTime = new Date(now.getFullYear(), now.getMonth(), now.getDay(), timeArray[0], timeArray[1], timeArray[2])
+    return normalTime.getTime() + (delay * 1000)
+};
 
 function parseTripDate(date, time){
     if(!date || !time){return null};

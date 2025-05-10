@@ -47,8 +47,8 @@
                     <br>
                     <div class="list-group">
                         <% for (const route of data){
-                            if (route.type == 0 || route.type == 2){ %>
-                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.short_name %>: <%= route.long_name %></a>
+                            if (route.route_type == 0 || route.route_type == 2){ %>
+                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.route_short_name %>: <%= route.route_long_name %></a>
                         <% }}; %>
                     </div>
                 </div>
@@ -57,8 +57,8 @@
                     <br>
                     <div class="list-group">
                         <% for (const route of data){
-                            if (route.type == 3){ %>
-                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.short_name %>: <%= route.long_name %></a>
+                            if (route.route_type == 3){ %>
+                                <a href="/route/<%= route.route_id %>" class="list-group-item list-group-item-action fw-semibold index-list-item"><%= route.route_short_name %>: <%= route.route_long_name %></a>
                         <% }}; %>
                     </div>
                 </div>

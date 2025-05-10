@@ -19,7 +19,9 @@
     "express": "^5.1.0",
     "gtfs-realtime-bindings": "^1.1.1",
     "protobufjs": "^7.4.0",
+    "shelljs": "^0.9.2",
     "sqlite3": "^5.1.7",
+    "text-file-diff": "^1.4.8",
     "yauzl": "^3.2.0"
   }
 }

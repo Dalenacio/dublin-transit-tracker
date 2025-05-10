@@ -16,17 +16,18 @@ import {parse} from "csv-parse";
 import "./poller.js";
 import { pollApi } from "./poller.js";
 import { createReadStream } from 'node:fs';
+import TextFileDiff from 'text-file-diff';
+import shelljs from "shelljs";
 
 const db = new sqlite3.Database("database.db")
-
 
 export async function initDatabase(){
     const sqlRoutes = `
         route_id TEXT PRIMARY KEY, 
-        agency INTEGER NOT NULL, 
-        short_name TEXT NOT NULL, 
-        long_name TEXT NOT NULL, 
-        type INT NOT NULL
+        agency_id INTEGER NOT NULL, 
+        route_short_name TEXT NOT NULL, 
+        route_long_name TEXT NOT NULL, 
+        route_type INT NOT NULL
     `
 
     const sqlStops = `
@@ -105,10 +106,10 @@ export async function initDatabase(){
     await execute(db, `DELETE FROM vehicles;`)
     await execute(db, `DELETE FROM vehicle_times;`)
 
-    await loadRouteData().then(() => {console.log("Loaded Route Data!")});
-    await loadStopData().then(() => {console.log("Loaded Stop Data!")});
-    await loadTripData().then(() => {console.log("Loaded Trip Data!")});
-    await loadStopTimeData().then(() => {console.log("Loaded Stop Time Data!")});
+    await loadGeneric("routes.txt", "routes").then(() => {console.log("Loaded Route Data!")});
+    await loadGeneric("stops.txt", "stops").then(() => {console.log("Loaded Stop Data!")});
+    await loadGeneric("trips.txt", "trips").then(() => {console.log("Loaded Trip Data!")});
+    await loadGeneric("stop_times.txt", "stop_times").then(() => {console.log("Loaded Stop Time Data!")});
     await loadVehicleData().then(() => {console.log("Loaded Vehicle Data!")});
     //await getGeneralData().then((outcome) => {console.log(outcome)});
 }
@@ -121,7 +122,12 @@ export async function getGeneralData(){
 export async function getRouteData(route_id){
     const routeData = await getAll(`SELECT * FROM routes WHERE route_id = '${route_id}';`);
     const vehicleList = await getAll(`SELECT * FROM vehicles WHERE route_id = '${route_id}';`);
-    const returnData = {routeData: routeData, vehicleList: vehicleList};
+    const vehicleTimeList = []
+    for (const vehicle of vehicleList){
+        const vehicleTimes = await getAll(`SELECT * FROM vehicle_times WHERE vehicle_id = '${vehicle.vehicle_id}'`)
+        vehicleTimeList[vehicle.vehicle_id] = vehicleTimes
+    }
+    const returnData = {routeData: routeData, vehicleList: vehicleList, vehicleTimeList: vehicleTimeList};
     return returnData;
 };
 
@@ -136,6 +142,18 @@ async function getAll(sql, params = []){
         });
     });
 };
+
+async function doGet(sql, params= []){
+    return new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => {
+            if (err) {
+                reject(err);
+                return
+            }
+            resolve(row)
+        })
+    });
+}
 
 async function stmtRun(stmt, params = []) {
     if (params.length > 0){
@@ -179,132 +197,30 @@ export async function execute(db, sql, params = []){
     });
 };
 
-async function loadRouteData() {
-    console.log("Loading routes...")
-    let stmt
-    let transactionBegun = false;
-    try{
-        const routeCSV = await loadCSV("routes.txt");
-        if(!routeCSV){throw new Error("Failed to load CSV.")}
-
-        stmt = db.prepare(`INSERT INTO routes VALUES(?, ?, ?, ?, ?)`)
-        await execute(db, "BEGIN TRANSACTION")
-        transactionBegun = true;
-
-        for (const entry of routeCSV) {
-            const route_id = entry.route_id
-            const agency_id = entry.agency_id
-            const route_short_name = entry.route_short_name
-            const route_long_name = entry.route_long_name
-            const route_type = entry.route_type
-            
-            await stmtRun(stmt, [route_id, agency_id, route_short_name, route_long_name, route_type])
-        }
-
-        await execute(db, `COMMIT`)
-
-    }catch(error){
-        if(transactionBegun){await execute(db, "ROLLBACK")}
-        console.log(error)
-    } finally {
-        if (stmt) {stmt.finalize()}
-    }
-};
-
-async function loadStopData() {
-    console.log("Loading stops...")
-    let stmt
-    let transactionBegun = false;
-    try{
-        const stopsCSV = await loadCSV("stops.txt");
-        if (!stopsCSV) {throw new Error("Failed to load CSV.")};
-
-        stmt = db.prepare(`INSERT INTO stops VALUES(?, ?)`)
-        await execute(db, `BEGIN TRANSACTION`)
-
-        for (const entry of stopsCSV) {
-            const stop_id = entry.stop_id
-            const stop_name = entry.stop_name
-
-            await stmtRun(stmt, [stop_id, stop_name])
-        }
-
-        await execute(db, `COMMIT`)
-    } catch(error){
-        await execute(db, `ROLLBACK`)
-        console.log(error)
-    } finally {
-        if (stmt) {stmt.finalize()}
-    }
-};
-
-async function loadTripData() {
-    console.log("Loading trips...")
-    let stmt
-    let transactionBegun = false;
-    try{
-        const tripCSV = await loadCSV("trips.txt");
-        if (!tripCSV){throw new Error("Failed to load CSV.")}
-
-        const start_time = new Date()
-        stmt = db.prepare(`INSERT INTO trips VALUES(?, ?, ?, ?, ?)`)
-        await execute(db, "BEGIN TRANSACTION")
-        transactionBegun = true;
-
-        for (const entry of tripCSV){
-            const trip_id = entry.trip_id;
-            const route_id = entry.route_id;
-            const service_id = entry.service_id;
-            const trip_headsign = entry.trip_headsign;
-            const direction_id = entry.direction_id;
-
-            await stmtRun(stmt, [trip_id, route_id, service_id, trip_headsign, direction_id])
-        }
-
-        await execute(db, "COMMIT")
-        console.log("Total time: ", (new Date() - start_time) / 1000, " seconds!")
-    }catch(error){
-        if(transactionBegun){await execute(db, "ROLLBACK")}
-        console.log(error)
-    } finally {
-        if (stmt) {stmt.finalize()}
-    }
-};
-
-async function loadStopTimeData() {
-    console.log("Loading stop times...");
+async function loadGeneric(fileName, tableName){
     const batchCap = 1000;
     let stmt;
     let transactionBegun = false;
-    const fileName = "stop_times.txt";
-
     try {
+        const colString = await doGet(`select group_concat(name, '|') from pragma_table_info('${tableName}')`)
+        const paramNames = colString[`group_concat(name, '|')`].split("|")
         const startTime = new Date();
-        stmt = db.prepare(`INSERT INTO stop_times VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-        
+        stmt = db.prepare(`INSERT INTO ${tableName} VALUES(${"?, ".repeat(paramNames.length).slice(0, -2)})`);
         let batch = [];
-        console.log("Beginning insertion by streaming records. This may take some time...");
-
         await execute(db, "BEGIN TRANSACTION");
         transactionBegun = true;
+        console.log()
 
-        for await (const entry of streamCSV(fileName)) {
-            const params = [
-                entry.trip_id,
-                entry.arrival_time,
-                entry.departure_time,
-                entry.stop_id,
-                entry.stop_sequence,
-                entry.stop_headsign,
-                entry.pickup_type,
-                entry.drop_off_type,
-                entry.timepoint
-            ];
-            batch.push(params);
+        for await (const entry of streamCSV(fileName)){
+            const params = []
+            for (const name of paramNames){
+                params.push(entry[name])
+            }
+            batch.push(params)
 
-            if (batch.length >= batchCap) {
-                for (const recordParams of batch) {
-                    await stmtRun(stmt, recordParams);
+            if (batch.length >= batchCap){
+                for (const recordParams of batch){
+                    await stmtRun(stmt, recordParams)
                 }
                 await execute(db, "COMMIT");
                 transactionBegun = false; 
@@ -316,6 +232,7 @@ async function loadStopTimeData() {
         }
 
         if (batch.length > 0) {
+            
             for (const recordParams of batch) {
                 await stmtRun(stmt, recordParams);
             }
@@ -325,25 +242,13 @@ async function loadStopTimeData() {
             await execute(db, "COMMIT");
             transactionBegun = false;
         }
-        
-        console.log("Total time for stop times: ", (new Date() - startTime) / 1000, " seconds!");
 
+        console.log(`Populated ${tableName} in ${(new Date() - startTime) / 1000} seconds!`);
+        
     } catch (error) {
-        console.error(`Error loading stop time data from ${fileName}:`, error);
-        if (transactionBegun) {
-            try {
-                await execute(db, "ROLLBACK");
-                console.log("Transaction rolled back due to error.");
-            } catch (rollbackError) {
-                console.error("Error rolling back transaction:", rollbackError);
-            }
-        }
+        console.log(`Error streaming ${fileName}: ${error}`)
     } finally {
-        if (stmt) {
-            stmt.finalize((finalizeErr) => {
-                if (finalizeErr) console.error("Error finalizing statement for stop_times:", finalizeErr);
-            });
-        }
+        if (stmt) {stmt.finalize}
     }
 }
 

@@ -20,7 +20,6 @@ app.get('/health', (req, res) => {
 
 async function startServer() {
   try {
-    await updateInfo();
     await initDatabase();
 
 

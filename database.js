@@ -1,117 +1,125 @@
 /*
 TO DO:
-* Re-implement automated updates.
+    * DONE: Re-implement automated updates.
     * DONE: Work on the data request methods. 
     * DONE: Implement per-vehicle trip update data. How?
-* Simplify: we can have one single function to do the insertion process for everything instead of a discrete function for each.
-* Only update files if strictly necessary: compare file hashes, then update line by line?
+    * DONE:Simplify: we can have one single function to do the insertion process for everything instead of a discrete function for each.
+* in progress... Only update files if strictly necessary: compare file hashes, then update line by line?
 * maintain atomicity with the streaming method: send data to temporary table, then make that the main table in one single transaction.
 */
 
 
 import sqlite3 from "sqlite3";
-import { readFile } from 'node:fs/promises';
 import path from 'path';
 import {parse} from "csv-parse";
-import "./poller.js";
 import { pollApi } from "./poller.js";
 import { createReadStream } from 'node:fs';
 import TextFileDiff from 'text-file-diff';
 import shelljs from "shelljs";
+import { updateInfo } from "./updater.js";
 
 const db = new sqlite3.Database("database.db")
+const POLL_INTERVAL = 60000
 
 export async function initDatabase(){
-    const sqlRoutes = `
-        route_id TEXT PRIMARY KEY, 
-        agency_id INTEGER NOT NULL, 
-        route_short_name TEXT NOT NULL, 
-        route_long_name TEXT NOT NULL, 
-        route_type INT NOT NULL
-    `
+    try {
+        await updateInfo();
 
-    const sqlStops = `
-        stop_id TEXT PRIMARY KEY, 
-        stop_name TEXT NOT NULL
-    `
+        const sqlRoutes = `
+            route_id TEXT PRIMARY KEY, 
+            agency_id INTEGER NOT NULL, 
+            route_short_name TEXT NOT NULL, 
+            route_long_name TEXT NOT NULL, 
+            route_type INT NOT NULL
+        `
 
-    const sqlTrips = `
-        trip_id TEXT PRIMARY KEY, 
-        route_id TEXT NOT NULL, 
-        service_id INT NOT NULL, 
-        trip_headsign TEXT NOT NULL, 
-        direction_id INT NOT NULL, 
-        FOREIGN KEY (route_id) REFERENCES routes(route_id)
-    `
+        const sqlStops = `
+            stop_id TEXT PRIMARY KEY, 
+            stop_name TEXT NOT NULL
+        `
 
-    const sqlStopTimes = `
-        trip_id TEXT NOT NULL, 
-        arrival_time TEXT NOT NULL, 
-        departure_time TEXT NOT NULL, 
-        stop_id TEXT NOT NULL, 
-        stop_sequence INTEGER NOT NULL, 
-        stop_headsign TEXT, 
-        pickup_type INTEGER NOT NULL, 
-        drop_off_type INTEGER NOT NULL, 
-        timepoint INTEGER NOT NULL, 
-        PRIMARY KEY(trip_id, stop_sequence), 
-        FOREIGN KEY (trip_id) REFERENCES trips(trip_id), 
-        FOREIGN KEY (stop_id) REFERENCES stops(stop_id)
-    `
+        const sqlTrips = `
+            trip_id TEXT PRIMARY KEY, 
+            route_id TEXT NOT NULL, 
+            service_id INT NOT NULL, 
+            trip_headsign TEXT NOT NULL, 
+            direction_id INT NOT NULL, 
+            FOREIGN KEY (route_id) REFERENCES routes(route_id)
+        `
 
-    //We have to explicitly allow trip_id to be null because SOMETIMES there'll be a random vehicle without a set trip_id.
-    //This appears to only happen for buses added outside of schedule? And very rarely and inconsistently?
-    //Either way, better safe than sorry, and a good thing to be aware of.
-    const sqlVehicles = `
-        vehicle_id TEXT PRIMARY KEY, 
-        trip_id TEXT NULL,
-        start_time TEXT NOT NULL, 
-        status TEXT NOT NULL, 
-        route_id TEXT NOT NULL, 
-        direction_id INTEGER NOT NULL, 
-        FOREIGN KEY (trip_id) REFERENCES trips(trip_id), 
-        FOREIGN KEY (route_id) REFERENCES routes(route_id)
-    `
+        const sqlStopTimes = `
+            trip_id TEXT NOT NULL, 
+            arrival_time TEXT NOT NULL, 
+            departure_time TEXT NOT NULL, 
+            stop_id TEXT NOT NULL, 
+            stop_sequence INTEGER NOT NULL, 
+            stop_headsign TEXT, 
+            pickup_type INTEGER NOT NULL, 
+            drop_off_type INTEGER NOT NULL, 
+            timepoint INTEGER NOT NULL, 
+            PRIMARY KEY(trip_id, stop_sequence), 
+            FOREIGN KEY (trip_id) REFERENCES trips(trip_id), 
+            FOREIGN KEY (stop_id) REFERENCES stops(stop_id)
+        `
 
-    const sqlVehicleTimes = `
-        vehicle_id TEXT NOT NULL,
-        stop_sequence INTEGER NOT NULL,
-        stop_id TEXT NOT NULL,
-        stop_name TEXT,
-        route_id TEXT NOT NULL,
-        trip_id TEXT NULL,
-        schedule_relationship TEXT,
-        arrival_delay INTEGER,
-        arrival_time INTEGER,
-        departure_delay INTEGER,
-        departure_time INTEGER,
-        PRIMARY KEY(vehicle_id, stop_sequence),
-        FOREIGN KEY(vehicle_id) references vehicles(vehicle_id),
-        FOREIGN KEY(stop_id) references stops(stop_id),
-        FOREIGN KEY(route_id) references routes(route_id),
-        FOREIGN KEY(trip_id) references trips(trip_id)
-    `
+        //We have to explicitly allow trip_id to be null because SOMETIMES there'll be a random vehicle without a set trip_id.
+        //This appears to only happen for buses added outside of schedule? And very rarely and inconsistently?
+        //Either way, better safe than sorry, and a good thing to be aware of.
+        const sqlVehicles = `
+            vehicle_id TEXT PRIMARY KEY, 
+            trip_id TEXT NULL,
+            start_time TEXT NOT NULL, 
+            status TEXT NOT NULL, 
+            route_id TEXT NOT NULL, 
+            direction_id INTEGER NOT NULL, 
+            FOREIGN KEY (trip_id) REFERENCES trips(trip_id), 
+            FOREIGN KEY (route_id) REFERENCES routes(route_id)
+        `
 
-    await execute(db, "CREATE TABLE IF NOT EXISTS " + "routes ("+ sqlRoutes + ")")
-    await execute(db, "CREATE TABLE IF NOT EXISTS " + "stops ("+ sqlStops + ")")
-    await execute(db, "CREATE TABLE IF NOT EXISTS " + "trips ("+ sqlTrips + ")")
-    await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
-    await execute(db, "CREATE TABLE IF NOT EXISTS " + "vehicles ("+ sqlVehicles + ")")
-    await execute(db, "CREATE TABLE IF NOT EXISTS " +  "vehicle_times ("+ sqlVehicleTimes +")")
+        const sqlVehicleTimes = `
+            vehicle_id TEXT NOT NULL,
+            stop_sequence INTEGER NOT NULL,
+            stop_id TEXT NOT NULL,
+            stop_name TEXT,
+            route_id TEXT NOT NULL,
+            trip_id TEXT NULL,
+            schedule_relationship TEXT,
+            arrival_delay INTEGER,
+            arrival_time INTEGER,
+            departure_delay INTEGER,
+            departure_time INTEGER,
+            PRIMARY KEY(vehicle_id, stop_sequence),
+            FOREIGN KEY(vehicle_id) references vehicles(vehicle_id),
+            FOREIGN KEY(stop_id) references stops(stop_id),
+            FOREIGN KEY(route_id) references routes(route_id),
+            FOREIGN KEY(trip_id) references trips(trip_id)
+        `
 
-    await execute(db, `DELETE FROM routes;`)
-    await execute(db, `DELETE FROM stops;`)
-    await execute(db, `DELETE FROM trips;`)
-    await execute(db, `DELETE FROM stop_times;`)
-    await execute(db, `DELETE FROM vehicles;`)
-    await execute(db, `DELETE FROM vehicle_times;`)
+        await execute(db, "CREATE TABLE IF NOT EXISTS " + "routes ("+ sqlRoutes + ")")
+        await execute(db, "CREATE TABLE IF NOT EXISTS " + "stops ("+ sqlStops + ")")
+        await execute(db, "CREATE TABLE IF NOT EXISTS " + "trips ("+ sqlTrips + ")")
+        // await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
+        await execute(db, "CREATE TABLE IF NOT EXISTS " + "vehicles ("+ sqlVehicles + ")")
+        await execute(db, "CREATE TABLE IF NOT EXISTS " +  "vehicle_times ("+ sqlVehicleTimes +")")
 
-    await loadGeneric("routes.txt", "routes").then(() => {console.log("Loaded Route Data!")});
-    await loadGeneric("stops.txt", "stops").then(() => {console.log("Loaded Stop Data!")});
-    await loadGeneric("trips.txt", "trips").then(() => {console.log("Loaded Trip Data!")});
-    await loadGeneric("stop_times.txt", "stop_times").then(() => {console.log("Loaded Stop Time Data!")});
-    await loadVehicleData().then(() => {console.log("Loaded Vehicle Data!")});
-    //await getGeneralData().then((outcome) => {console.log(outcome)});
+        await execute(db, `DELETE FROM routes;`)
+        await execute(db, `DELETE FROM stops;`)
+        await execute(db, `DELETE FROM trips;`)
+        // await execute(db, `DELETE FROM stop_times;`)
+        await execute(db, `DELETE FROM vehicles;`)
+        await execute(db, `DELETE FROM vehicle_times;`)
+
+        await loadGeneric("routes.txt", "routes").then(() => {console.log("Loaded Route Data!")});
+        await loadGeneric("stops.txt", "stops").then(() => {console.log("Loaded Stop Data!")});
+        await loadGeneric("trips.txt", "trips").then(() => {console.log("Loaded Trip Data!")});
+        // await loadGeneric("stop_times.txt", "stop_times").then(() => {console.log("Loaded Stop Time Data!")});
+        await loadVehicleData().then(() => {console.log("Loaded Vehicle Data!")});
+
+        setInterval(loadVehicleData, POLL_INTERVAL);
+        //await getGeneralData().then((outcome) => {console.log(outcome)});
+    } catch(error){
+        console.error("Error initializing database: ", error)
+    }
 }
 
 export async function getGeneralData(){
@@ -254,6 +262,7 @@ async function loadGeneric(fileName, tableName){
 
 async function loadVehicleData(){
     console.log("Loading vehicles...")
+    
     let stmt
     let stopNameStmt
     let vehicleTimeStmt
@@ -262,6 +271,8 @@ async function loadVehicleData(){
     try{
         const apiData = await pollApi()
         if (!apiData) {throw new Error("Failed to load API data.")}
+        await execute(db, `DELETE FROM vehicles;`)
+        await execute(db, `DELETE FROM vehicle_times;`)
 
         stmt = db.prepare(`INSERT INTO vehicles VALUES (?, ?, ?, ?, ?, ?)`)
         stopNameStmt = db.prepare(`SELECT stop_name FROM stops WHERE stop_id = ?`)
@@ -316,30 +327,30 @@ async function loadVehicleData(){
 };
 
 
-async function loadCSV(fileName) {
-    try {
-        const filePath = path.join(process.cwd(), 'public', 'apiDocumentation', fileName);
-        console.log(`Preparing to read ${filePath}`);
-        const data = await readFile(filePath, 'utf8');
-        console.log(`Successfully read ${filePath}`);
+// async function loadCSV(fileName) {
+//     try {
+//         const filePath = path.join(process.cwd(), 'public', 'apiDocumentation', fileName);
+//         console.log(`Preparing to read ${filePath}`);
+//         const data = await readFile(filePath, 'utf8');
+//         console.log(`Successfully read ${filePath}`);
 
-        const records = await new Promise((resolve, reject) => {
-            parse(data, {
-                bom: true,
-                columns: true,
-                skip_empty_lines: true
-            }, (err, records) => {
-                if (err) reject(err);
-                else resolve(records);
-            });
-        });
+//         const records = await new Promise((resolve, reject) => {
+//             parse(data, {
+//                 bom: true,
+//                 columns: true,
+//                 skip_empty_lines: true
+//             }, (err, records) => {
+//                 if (err) reject(err);
+//                 else resolve(records);
+//             });
+//         });
 
-        return records;
-    } catch (error) {
-        console.error(`Error parsing file ${fileName}: ${error}`);
-        return null;
-    }
-}
+//         return records;
+//     } catch (error) {
+//         console.error(`Error parsing file ${fileName}: ${error}`);
+//         return null;
+//     }
+// }
 
 async function* streamCSV(fileName) {
     const filePath = path.join(process.cwd(), 'public', 'apiDocumentation', fileName);
@@ -375,3 +386,24 @@ function parseTripDate(date, time){
         return null;
     }
 };
+
+export async function checkReference(data) {
+    let stmt
+    try{
+        stmt = db.prepare(`SELECT route_id FROM routes WHERE route_id = ?`)
+
+        for (const vehicle of data) {
+            const routeId = vehicle.trip_update.trip.route_id
+            const isRouteId = await stmtGet(stmt, routeId)
+            if(!isRouteId){
+                return false
+            }
+        };
+
+        return true
+    }catch(error){
+        console.error(error)
+    }finally{
+        if(stmt){stmt.finalize()}
+    }
+}

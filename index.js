@@ -59,12 +59,8 @@ app.get("/route/:routeId", async (req, res) => {
       return;
     }
     const chosenRoute = req.params.routeId;
-    res.render("routeInfo.ejs", {routeId : chosenRoute, data: data})
-});
-
-app.get("/cache", async (req, res) => {
-  const data = getCache()
-  res.json(data)
+    const data = await getRouteData(chosenRoute)
+    res.render("routeInfo.ejs", data)
 });
 
 

@@ -18,6 +18,7 @@
     "ejs": "^3.1.10",
     "express": "^5.1.0",
     "gtfs-realtime-bindings": "^1.1.1",
+    "luxon": "^3.6.1",
     "protobufjs": "^7.4.0",
     "shelljs": "^0.9.2",
     "sqlite3": "^5.1.7",

@@ -1,8 +1,5 @@
 import express from "express";
-import { structureData } from "./structurer.js";
-import { getCache } from './cache.js';
 import './poller.js';
-import { updateInfo } from "./updater.js";
 import { initDatabase, getGeneralData, getRouteData } from "./database.js";
 
 const port = 3000;
@@ -43,11 +40,6 @@ app.get("/route/:routeId", async (req, res) => {
     const chosenRoute = req.params.routeId;
     const data = await getRouteData(chosenRoute)
     res.render("routeInfo.ejs", data)
-});
-
-app.get("/cache", async (req, res) => {
-  const data = getCache()
-  res.json(data)
 });
 
 

@@ -3,7 +3,7 @@ TO DO:
     * DONE: Re-implement automated updates.
     * DONE: Work on the data request methods. 
     * DONE: Implement per-vehicle trip update data. How?
-    * DONE:Simplify: we can have one single function to do the insertion process for everything instead of a discrete function for each.
+    * DONE: Simplify: we can have one single function to do the insertion process for everything instead of a discrete function for each.
 * in progress... Only update files if strictly necessary: compare file hashes, then update line by line?
 * maintain atomicity with the streaming method: send data to temporary table, then make that the main table in one single transaction.
 */
@@ -17,13 +17,14 @@ import { createReadStream } from 'node:fs';
 import TextFileDiff from 'text-file-diff';
 import shelljs from "shelljs";
 import { updateInfo } from "./updater.js";
+import { DateTime } from "luxon";
 
 const db = new sqlite3.Database("database.db")
 const POLL_INTERVAL = 60000
+const AREA_TIMEZONE = 'Europe/Dublin';
 
 export async function initDatabase(){
     try {
-        await updateInfo();
 
         const sqlRoutes = `
             route_id TEXT PRIMARY KEY, 
@@ -94,29 +95,30 @@ export async function initDatabase(){
             FOREIGN KEY(route_id) references routes(route_id),
             FOREIGN KEY(trip_id) references trips(trip_id)
         `
+        
+        await updateInfo();
 
         await execute(db, "CREATE TABLE IF NOT EXISTS " + "routes ("+ sqlRoutes + ")")
         await execute(db, "CREATE TABLE IF NOT EXISTS " + "stops ("+ sqlStops + ")")
         await execute(db, "CREATE TABLE IF NOT EXISTS " + "trips ("+ sqlTrips + ")")
-        // await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
+        await execute(db, "CREATE TABLE IF NOT EXISTS " + "stop_times ("+ sqlStopTimes + ")")
         await execute(db, "CREATE TABLE IF NOT EXISTS " + "vehicles ("+ sqlVehicles + ")")
         await execute(db, "CREATE TABLE IF NOT EXISTS " +  "vehicle_times ("+ sqlVehicleTimes +")")
 
         await execute(db, `DELETE FROM routes;`)
         await execute(db, `DELETE FROM stops;`)
         await execute(db, `DELETE FROM trips;`)
-        // await execute(db, `DELETE FROM stop_times;`)
+        await execute(db, `DELETE FROM stop_times;`)
         await execute(db, `DELETE FROM vehicles;`)
         await execute(db, `DELETE FROM vehicle_times;`)
 
         await loadGeneric("routes.txt", "routes").then(() => {console.log("Loaded Route Data!")});
         await loadGeneric("stops.txt", "stops").then(() => {console.log("Loaded Stop Data!")});
         await loadGeneric("trips.txt", "trips").then(() => {console.log("Loaded Trip Data!")});
-        // await loadGeneric("stop_times.txt", "stop_times").then(() => {console.log("Loaded Stop Time Data!")});
+        await loadGeneric("stop_times.txt", "stop_times").then(() => {console.log("Loaded Stop Time Data!")});
         await loadVehicleData().then(() => {console.log("Loaded Vehicle Data!")});
 
         setInterval(loadVehicleData, POLL_INTERVAL);
-        //await getGeneralData().then((outcome) => {console.log(outcome)});
     } catch(error){
         console.error("Error initializing database: ", error)
     }
@@ -127,7 +129,23 @@ export async function getGeneralData(){
     return routesData;
 };
 
+//filtered to only stops that haven't happened yet.
 export async function getRouteData(route_id){
+    const fullData = await getFullRouteData(route_id)
+    const now = DateTime.now().setZone(AREA_TIMEZONE).toMillis()
+    console.log("now: ", now)
+    for (const vehicleKey in fullData.vehicleTimeList){
+        fullData.vehicleTimeList[vehicleKey] = fullData.vehicleTimeList[vehicleKey].filter((stop) => {
+            console.log("")
+            console.log("arrival: ")
+            console.log(new Date(stop.arrival_time))
+            return stop.arrival_time > now
+        })
+    }
+    return fullData
+};
+
+export async function getFullRouteData(route_id){
     const routeData = await getAll(`SELECT * FROM routes WHERE route_id = '${route_id}';`);
     const vehicleList = await getAll(`SELECT * FROM vehicles WHERE route_id = '${route_id}';`);
     const vehicleTimeList = []
@@ -309,12 +327,11 @@ async function loadVehicleData(){
                 let departure_time = stop.departure?.time
 
                 if(!arrival_time && arrival_delay && !departure_time && departure_delay && trip_id){
+                    console.log(stop_id)
                     stop_time_data = await stmtGet(stopTimeRequest, [trip_id, stop_sequence])
                     arrival_time = unixTimeWithDelay(stop_time_data.arrival_time, arrival_delay)
                     departure_time = unixTimeWithDelay(stop_time_data.departure_time, departure_delay)
                 }
-
-                if(!departure_time && departure_delay && trip_id){}
 
                 await stmtRun(vehicleTimeStmt, [vehicle_id, stop_sequence, stop_id, stop_name, route_id, trip_id, schedule_relationship, arrival_delay, arrival_time, departure_delay, departure_time])
             }
@@ -323,66 +340,79 @@ async function loadVehicleData(){
         await execute(db, "COMMIT")
     }catch(error){
         if(transactionBegun){await execute(db, "ROLLBACK")}
-        console.log("Error while loading vehicle data: ", error)}
+        console.log("Error while loading vehicle data: ", error)
+    }
 };
 
-
-// async function loadCSV(fileName) {
-//     try {
-//         const filePath = path.join(process.cwd(), 'public', 'apiDocumentation', fileName);
-//         console.log(`Preparing to read ${filePath}`);
-//         const data = await readFile(filePath, 'utf8');
-//         console.log(`Successfully read ${filePath}`);
-
-//         const records = await new Promise((resolve, reject) => {
-//             parse(data, {
-//                 bom: true,
-//                 columns: true,
-//                 skip_empty_lines: true
-//             }, (err, records) => {
-//                 if (err) reject(err);
-//                 else resolve(records);
-//             });
-//         });
-
-//         return records;
-//     } catch (error) {
-//         console.error(`Error parsing file ${fileName}: ${error}`);
-//         return null;
-//     }
-// }
-
 async function* streamCSV(fileName) {
-    const filePath = path.join(process.cwd(), 'public', 'apiDocumentation', fileName);
-    console.log(`Preparing to stream records from ${filePath}`);
-    const fileStream = createReadStream(filePath, 'utf8');
-    
-    const parser = fileStream.pipe(parse({
-        bom: true,
-        columns: true,
-        skip_empty_lines: true
-    }));
+    try{
+        const filePath = path.join(process.cwd(), 'public', 'apiDocumentation', fileName);
+        console.log(`Preparing to stream records from ${filePath}`);
+        const fileStream = createReadStream(filePath, 'utf8');
+        
+        const parser = fileStream.pipe(parse({
+            bom: true,
+            columns: true,
+            skip_empty_lines: true
+        }));
 
-    for await (const record of parser) {
-        yield record;
+        for await (const record of parser) {
+            yield record;
+        }
+        console.log(`Finished streaming records from ${filePath}`);
+    } catch(error){
+        console.log("Error streaming CSV: ", error)
     }
-    console.log(`Finished streaming records from ${filePath}`);
 }
 
 function unixTimeWithDelay(hourString, delay){
-    const timeArray = hourString.split(":")
-    const now = new Date()
-    const normalTime = new Date(now.getFullYear(), now.getMonth(), now.getDay(), timeArray[0], timeArray[1], timeArray[2])
-    return normalTime.getTime() + (delay * 1000)
+    try{
+        const [hour, m, s] = hourString.split(":").map(Number);
+        const h = hour % 24;
+        const daysToAdd = Math.floor(hour / 24);
+        const now = DateTime.now().setZone(AREA_TIMEZONE)
+        const dayTime = now.startOf('day').plus({ days: daysToAdd });
+
+        const scheduledTime = dayTime.set({
+            hour: h,
+            minute: m,
+            second: s
+        });
+        const realTime = scheduledTime.plus({seconds: delay})
+        const unixTime = realTime.toMillis();
+        return unixTime
+    }catch(error){
+        console.error(`Invalid time or delay: ${hourString}, ${delay}.`)
+    }
 };
 
-function parseTripDate(date, time){
-    if(!date || !time){return null};
+function parseTripDate(dateString, timeString){
     try {
-        const timeString = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}T${time}`;
-        return new Date(timeString);
-      } catch (e) {
-        console.error(`Invalid date: ${date} ${time}`);
+        if(!dateString || !timeString){throw new Error ("Date or time empty.")};
+
+        const year = parseInt(dateString.slice(0, 4));
+        const month = parseInt(dateString.slice(4, 6));
+        const day = parseInt(dateString.slice(6, 8));
+
+        const [hour, m, s] = timeString.split(":").map(Number);
+        const h = hour % 24;
+        const daysToAdd = Math.floor(hour / 24);
+
+        const nowDay = DateTime.now().setZone(AREA_TIMEZONE).startOf("day")
+        const dayTime = DateTime.fromObject({
+            year: year,
+            month: month,
+            day: day,
+            hour: h,
+            minute : m,
+            second : s
+        }, {zone : AREA_TIMEZONE}).plus({day: daysToAdd})
+
+        if (!dayTime.isValid){console.log("DayTime invalid. DayTime: ", dayTime)}
+
+        return dayTime.toMillis()
+    } catch (error) {
+        console.error(`Invalid date: ${dateString} ${timeString}. Reason: `, error);
         return null;
     }
 };

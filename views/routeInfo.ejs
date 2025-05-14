@@ -17,18 +17,19 @@
     </div>
     <div class="container">
         <div class="container row pt-3">
-            <% let dir; %>
+            <% let dir;%>
             <% for (dir = 0; dir < 2; dir++){%>
             <div class="container col-6">
                 <h2 id="dir-0-title"> Direction <%= dir %>: PLACEHOLDER </h2>
                 <div class="accordion" id="accordionDirZero">
                 <% for (const vehicle of vehicleList){
                     if (vehicle.direction_id != dir){continue}
-                    const nextStops = vehicleTimeList[vehicle.vehicle_id] %>
+                    const nextStops = vehicleTimeList[vehicle.vehicle_id]
+                    if (!nextStops.length){continue} %>
                     <div class="accordion-item <% if (vehicle.status == "CANCELED") { %>
                     btn-secondary
                     <% } %>" >
-                    <h2 class="accordion-header" >
+                    <h2 class="accordion-header">
                         <button class="accordion-button collapsed <% if (vehicle.status == 'CANCELED') { %>
                         bg-secondary text-white
                         <% } else if (nextStops[0]?.delay > 60 && nextStops[0]?.delay < 301) {%>

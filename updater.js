@@ -23,14 +23,11 @@ export async function updateInfo() {
 
   try {
     await fsp.mkdir(GTFS_DIR, { recursive: true });
-    console.log(`Ensured directory exists: ${GTFS_DIR}`);
 
     let success = false;
     if (IS_LOW_MEM) {
-        console.log("Using low-memory disk processing method.");
         success = await processZipDisk();
     } else {
-        console.log("Using standard memory processing method.");
         // success = await processZipMemory(); //Not yet implemented
         throw new Error("Standard memory processing not implemented yet.");
     }
@@ -41,7 +38,6 @@ export async function updateInfo() {
     console.error("Error during updateInfo:", error);
     return false;
   } finally {
-    console.log("Resetting update flag.");
     isUpdating = false;
   }
 }
@@ -66,7 +62,6 @@ async function processZipDisk() {
     zipPath = path.join(tempDir, `gtfs_download.zip`);
     const fileStream = fs.createWriteStream(zipPath);
     await pipeline(response.body, fileStream);
-    console.log(`Download complete. Saved temporary zip to: ${zipPath}`);
 
 
     console.log(`Starting reference material extraction to ${GTFS_DIR}.`);
@@ -76,8 +71,6 @@ async function processZipDisk() {
           return reject(new Error(`Error opening zip file: ${err.message}`));
         }
 
-        console.log("Zip file opened successfully.");
-
         zipfile.on('error', (zipErr) => {
             success = false;
             console.error("Zipfile error:", zipErr)
@@ -85,7 +78,6 @@ async function processZipDisk() {
         });
 
         zipfile.on('end', () => {
-            console.log('Finished reading all entries in the zip file.');
             resolve();
         });
 
@@ -106,7 +98,6 @@ async function processZipDisk() {
             const outputDir = path.dirname(fullOutputPath);
             await fsp.mkdir(outputDir, { recursive: true });
 
-            console.log(`Extracting: ${entry.fileName} to ${fullOutputPath}`);
             zipfile.openReadStream(entry, async (streamErr, readStream) => {
               if (streamErr) {
                 console.error(`Error opening read stream for ${entry.fileName}:`, streamErr);
@@ -118,7 +109,6 @@ async function processZipDisk() {
               try {
                 const writeStream = fs.createWriteStream(fullOutputPath);
                 await pipeline(readStream, writeStream);
-                console.log(`Successfully extracted ${entry.fileName}`);
               } catch (pipeErr) {
                 console.error(`Error piping data for ${entry.fileName}:`, pipeErr);
                 success = false;
@@ -149,7 +139,6 @@ async function processZipDisk() {
       console.log(`Cleaning up temporary directory: ${tempDir}`);
       try {
         await fsp.rm(tempDir, { recursive: true, force: true });
-        console.log("Temporary directory deleted.");
       } catch (rmErr) {
         console.error(`Error deleting temporary directory ${tempDir}: ${rmErr}`);
       }

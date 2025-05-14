@@ -1,3 +1,6 @@
+# Database (We dynamically create one with every relaunch as needed)
+database.db
+
 # API Documentation (somewhat heavy files auto-downloaded on server launch)
 public/apiDocumentation/
 

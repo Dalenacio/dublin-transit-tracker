@@ -1,8 +1,6 @@
 import express from "express";
-import { structureData } from "./structurer.js";
-import { getCache } from './cache.js';
 import './poller.js';
-import { updateInfo } from "./updater.js";
+import { initDatabase, getGeneralData, getRouteData } from "./database.js";
 
 const port = 3000;
 const app = express();
@@ -19,7 +17,9 @@ app.get('/health', (req, res) => {
 
 async function startServer() {
   try {
-    await updateInfo();
+    await initDatabase();
+
+
     isReady = true;
     
     app.listen(port, () => {
@@ -32,19 +32,14 @@ async function startServer() {
 }
 
 app.get("/", async (req, res) =>{
-    const data = await structureData()
+    const data = await getGeneralData()
     res.render("index.ejs", {data: data})
 })
 
 app.get("/route/:routeId", async (req, res) => {
-    const data = await structureData()
     const chosenRoute = req.params.routeId;
-    res.render("routeInfo.ejs", {routeId : chosenRoute, data: data})
-});
-
-app.get("/cache", async (req, res) => {
-  const data = getCache()
-  res.json(data)
+    const data = await getRouteData(chosenRoute)
+    res.render("routeInfo.ejs", data)
 });
 
 
